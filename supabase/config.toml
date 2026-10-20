@@ -1,0 +1,43 @@
+project_id = "NewHorizons"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+auto_expose_new_tables = false
+
+[db]
+port = 54322
+major_version = 17
+
+[realtime]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173"]
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[edge_runtime]
+enabled = true
+
+# The platform verifies browser JWTs, and @supabase/server rechecks user identity.
+# The service-only sync uses a named secret key on apikey, so its wrapper verifies it.
+[functions.sync-b2match]
+verify_jwt = false
+
+# Service-only, non-publishing verification uses a separate named secret key.
+[functions.verify-b2match]
+verify_jwt = false
+
+[functions.dashboard-data]
+verify_jwt = true
+
+[functions.controller-submit]
+verify_jwt = true

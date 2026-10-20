@@ -1,0 +1,13 @@
+{
+  "name": "@new-horizons/supabase",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

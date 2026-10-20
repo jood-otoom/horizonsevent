@@ -1,0 +1,20 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Local environment values
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+supabase/.temp/
+supabase/.branches/
+
+# Build and tool output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Operating system files
+.DS_Store
