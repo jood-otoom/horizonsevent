@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { B2matchSyncError } from "../functions/_shared/b2matchClient.ts";
+import { B2matchSyncError, fetchAllParticipantsWithStats, parseParticipantPage } from "../functions/_shared/b2matchClient.ts";
 import { safeDryRunFailure, verifyB2matchReadOnly } from "../functions/_shared/dryRunVerification.ts";
+import { requirePublishableMeet } from "../functions/_shared/dryRunSummary.ts";
 import { handleNamedSecretRequest, hasNamedSecretKey } from "../functions/_shared/namedSecretAuth.ts";
 
 const checkIn = (locationId: number | string = 17135, locationType = "event") => ({
@@ -62,6 +63,41 @@ describe("read-only b2match verification", () => {
     expect(result.registered).toBeNull();
     expect(result.checkedIn).toBeNull();
     expect(result.diagnostics.otherEventEntranceCheckIns).toBe(1);
+  });
+
+  it("applies the verifier's event-scan and status rules to publication", async () => {
+    const valid = [participant(1, "registered", [checkIn()]), participant(2, "canceled", [checkIn()])];
+    const verified = await verifyB2matchReadOnly({ apiKey: "fixture-only", eventId: "17135",
+      fetcher: async () => Response.json(page(valid, 2, null, "")) });
+    const parsed = parseParticipantPage(page(valid, 2, null, ""), "17135").participants;
+    expect(requirePublishableMeet(parsed, "17135")).toEqual({
+      registered: verified.registered, checkedIn: verified.checkedIn, checkInRate: verified.checkInRate,
+    });
+    expect(() => requirePublishableMeet([{ ...parsed[0], checkIns: [{ ...parsed[0].checkIns[0], locationId: "99999" }] }], "17135"))
+      .toThrow("wrong_event");
+    expect(() => requirePublishableMeet([{ ...parsed[0], status: "invited" }], "17135"))
+      .toThrow("unknown_participant_status");
+  });
+
+  it("applies the same empty-terminal-token traversal to verification and publication counts", async () => {
+    const fetcher: typeof fetch = async (input) => Response.json(
+      new URL(String(input)).searchParams.has("page")
+        ? page([participant(2, "canceled")], 2, "", "page-2")
+        : page([participant(1, "registered", [checkIn()])], 2, "next", ""),
+    );
+    const settings = { apiKey: "fixture-only", eventId: "17135", fetcher };
+    const verified = await verifyB2matchReadOnly(settings);
+    const publishable = requirePublishableMeet((await fetchAllParticipantsWithStats(settings)).participants, "17135");
+    expect(verified.status).toBe("complete");
+    expect(publishable).toEqual({ registered: verified.registered, checkedIn: verified.checkedIn,
+      checkInRate: verified.checkInRate });
+  });
+
+  it("withholds all counts when an empty token ends an incomplete traversal", async () => {
+    const settings = { apiKey: "fixture-only", eventId: "17135",
+      fetcher: async () => Response.json(page([participant(1)], 2, "", "")) };
+    await expect(verifyB2matchReadOnly(settings)).rejects.toMatchObject({ code: "incomplete_pagination" });
+    await expect(fetchAllParticipantsWithStats(settings)).rejects.toMatchObject({ code: "incomplete_pagination" });
   });
 
   it("never returns a partial result after a later page fails", async () => {

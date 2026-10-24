@@ -13,9 +13,7 @@ export default function MeetingController({ stats, state, message, onSubmit, ret
   return (
     <section className="controller-card" aria-labelledby="match-heading">
       <div className="controller-card-heading">
-        <span className="controller-pillar-number">01 / MATCH</span>
-        <h2 id="match-heading">Completed Meetings</h2>
-        <p>Record a meeting once it has finished.</p>
+        <h2 id="match-heading">MATCH Controller</h2>
       </div>
       <div className="controller-meeting-total">
         <span className="controller-total-label">{stats.dataMode === "mock" ? "Meetings recorded this demo session" : "Meetings recorded for this event"}</span>
@@ -33,7 +31,7 @@ export default function MeetingController({ stats, state, message, onSubmit, ret
         ))}
       </div>
       <p className={`controller-message controller-message-${state}`} role="status" aria-live="polite">
-        {message || (stats.dataMode === "mock" ? "Each tap creates synthetic meeting records." : "Record completed meetings only.")}
+        {message}
       </p>
     </section>
   );

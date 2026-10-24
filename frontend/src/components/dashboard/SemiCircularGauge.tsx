@@ -28,20 +28,22 @@ export function SemiCircularGauge({
   const progress = calculateProgressPercent(value, maxValue);
   const centerX = size / 2;
   const centerY = size / 2;
-  const radius = (size - strokeWidth) / 2;
-  const startX = strokeWidth / 2;
-  const endX = size - strokeWidth / 2;
-  const progressAngle = Math.PI - (progress / 100) * Math.PI;
-  const indicatorX = centerX + radius * Math.cos(progressAngle);
+  const edgePadding = 2;
+  const radius = centerX - strokeWidth / 2 - edgePadding;
+  const startX = centerX - radius;
+  const endX = centerX + radius;
+  const progressAngle = Math.PI * progress / 100;
+  const indicatorX = centerX - radius * Math.cos(progressAngle);
   const indicatorY = centerY - radius * Math.sin(progressAngle);
   const path = `M ${startX} ${centerY} A ${radius} ${radius} 0 0 1 ${endX} ${centerY}`;
   const accessibleLabel =
     ariaLabel ?? `${displayValue}, ${label}, ${Math.round(progress)} percent of target`;
 
   return (
-    <div className={`gauge-frame${loading ? " gauge-loading" : ""}`}>
+    <div className={`gauge-frame${loading ? " gauge-loading" : ""}`}
+      style={{ aspectRatio: `${size} / ${centerY + strokeWidth / 2 + edgePadding}` }}>
       <svg
-        viewBox={`0 0 ${size} ${size / 2 + strokeWidth}`}
+        viewBox={`0 0 ${size} ${centerY + strokeWidth / 2 + edgePadding}`}
         role="img"
         aria-label={accessibleLabel}
         data-progress={progress}
@@ -76,10 +78,10 @@ export function SemiCircularGauge({
           <circle
             cx={indicatorX}
             cy={indicatorY}
-            r={strokeWidth * 0.39}
+            r={strokeWidth * 0.47}
             fill={color}
             stroke="white"
-            strokeWidth={strokeWidth * 0.16}
+            strokeWidth={strokeWidth * 0.05}
             className="gauge-indicator"
           />
         )}

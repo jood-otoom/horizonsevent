@@ -42,12 +42,17 @@ describe("Edge request boundaries", () => {
   it("validates event, request IDs, quantities, and ratings", () => {
     expect(parseSubmission({ kind: "meeting", eventId: 17135, requestId, quantity: 3 })).toMatchObject({ quantity: 3 });
     expect(parseSubmission({ kind: "feedback", requestId, rating: 5 })).toMatchObject({ rating: 5 });
+    expect(parseSubmission({ kind: "checkin", requestId })).toMatchObject({ kind: "checkin" });
+    expect(parseSubmission({ kind: "reconcile_checkins", requestId, expectedManual: 2,
+      expectedApi: 3, expectedApiAt: "2026-10-23T00:00:00Z" })).toMatchObject({ expectedApi: 3 });
     expect(parseSubmission({ kind: "undo", requestId,
       originalRequestId: "11111111-1111-4111-8111-111111111111", reason: "duplicate" }))
       .toMatchObject({ kind: "undo", reason: "duplicate" });
     expect(() => parseSubmission({ kind: "meeting", eventId: 999, requestId, quantity: 1 })).toThrow();
     expect(() => parseSubmission({ kind: "meeting", requestId, quantity: 4 })).toThrow();
     expect(() => parseSubmission({ kind: "feedback", requestId, rating: 0 })).toThrow();
+    expect(() => parseSubmission({ kind: "reconcile_checkins", requestId, expectedManual: -1,
+      expectedApi: 3, expectedApiAt: "2026-10-23T00:00:00Z" })).toThrow();
     expect(() => parseSubmission({ kind: "feedback", requestId: "same", rating: 2 })).toThrow();
     expect(() => parseSubmission({ kind: "undo", requestId,
       originalRequestId: requestId, reason: "duplicate" })).toThrow();

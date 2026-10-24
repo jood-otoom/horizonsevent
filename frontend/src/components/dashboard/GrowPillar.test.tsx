@@ -18,4 +18,16 @@ describe("GrowPillar", () => {
     expect(markup).toContain("Awaiting ratings");
     expect(markup).not.toContain("NaN");
   });
+
+  it("labels the rating percentage against the five-point maximum", () => {
+    const metrics: GrowMetrics = {
+      dataMode: "live", status: "live", averageRating: 4,
+      maximumRating: 5, feedbackCount: 3,
+    };
+    const markup = renderToStaticMarkup(<GrowPillar metrics={metrics} />);
+
+    expect(markup).toContain("80%");
+    expect(markup).toContain("of Maximum Rating");
+    expect(markup).not.toContain("Target Achieved");
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseActions } from "./liveControllerService";
+import { parseActions, parseCheckins } from "./liveControllerService";
 
 const action = {
   requestId: "11111111-1111-4111-8111-111111111111",
@@ -23,5 +23,14 @@ describe("live controller history boundary", () => {
     expect(() => parseActions({ actions: [{ ...action, reversedAt: "unknown" }] })).toThrow();
     expect(() => parseActions({ actions: [{ ...action, requestId: "not-a-uuid" }] })).toThrow();
     expect(() => parseActions({ actions: Array(13).fill(action) })).toThrow();
+  });
+
+  it("accepts manual check-ins and validates the reconciled aggregate boundary", () => {
+    expect(parseActions({ actions: [{ ...action, kind: "checkin", quantity: 1,
+      undoEligible: false }] })[0].undoEligible).toBe(false);
+    expect(parseCheckins({ mode: "manual", registered: 202, checkedIn: 1,
+      apiCheckedIn: 2, apiAsOf: "2026-10-23T00:00:00Z", canReconcile: true }).checkedIn).toBe(1);
+    expect(() => parseCheckins({ mode: "manual", registered: 1, checkedIn: 2,
+      apiCheckedIn: 2, apiAsOf: "2026-10-23T00:00:00Z", canReconcile: true })).toThrow();
   });
 });

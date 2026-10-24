@@ -18,6 +18,13 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   if (request.method === "GET") {
+    if (new URL(request.url).searchParams.get("view") === "checkins") {
+      const { data, error } = await ctx.supabaseAdmin.rpc("get_checkin_control", {
+        p_event_id: 17135, p_staff_id: userId,
+      });
+      return error || !data ? Response.json({ error: "checkins_unavailable" }, { status: 503 })
+        : Response.json({ checkins: data });
+    }
     const { data, error } = await ctx.supabaseAdmin.rpc("list_controller_actions", {
       p_event_id: 17135, p_staff_id: userId,
     });
@@ -44,6 +51,12 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
     : submission.kind === "feedback" ? await ctx.supabaseAdmin.rpc("record_feedback", {
       p_event_id: 17135, p_request_id: submission.requestId,
       p_staff_id: userId, p_rating: submission.rating,
+    }) : submission.kind === "checkin" ? await ctx.supabaseAdmin.rpc("record_manual_checkin", {
+      p_event_id: 17135, p_request_id: submission.requestId, p_staff_id: userId,
+    }) : submission.kind === "reconcile_checkins" ? await ctx.supabaseAdmin.rpc("reconcile_manual_checkins", {
+      p_event_id: 17135, p_request_id: submission.requestId, p_staff_id: userId,
+      p_expected_manual: submission.expectedManual, p_expected_api: submission.expectedApi,
+      p_expected_api_at: submission.expectedApiAt,
     }) : await ctx.supabaseAdmin.rpc("reverse_controller_action", {
       p_event_id: 17135, p_original_request_id: submission.originalRequestId,
       p_reversal_request_id: submission.requestId, p_staff_id: userId,
@@ -51,9 +64,20 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
     });
   if (rpc.error) {
     const conflict = rpc.error.message.includes("request_conflict") ||
-      rpc.error.message.includes("already_reversed");
+      rpc.error.message.includes("already_reversed") ||
+      rpc.error.message.includes("reconciliation_conflict") ||
+      rpc.error.message.includes("attendance_at_capacity");
     return Response.json({ error: conflict ? "request_conflict" : "submission_failed" },
       { status: conflict ? 409 : 503 });
+  }
+  if (submission.kind === "checkin" || submission.kind === "reconcile_checkins") {
+    const { data, error } = await ctx.supabaseAdmin.rpc("get_checkin_control", {
+      p_event_id: 17135, p_staff_id: userId,
+    });
+    if (error || !data || !rpc.data || typeof rpc.data !== "object") {
+      return Response.json({ error: "submission_unconfirmed" }, { status: 503 });
+    }
+    return Response.json({ record: rpc.data, checkins: data });
   }
   const { data, error } = await ctx.supabaseAdmin.from("dashboard_aggregates")
     .select("completed_meetings,feedback_count,rating_sum").eq("event_id", 17135).single();

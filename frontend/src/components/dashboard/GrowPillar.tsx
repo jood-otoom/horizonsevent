@@ -36,7 +36,7 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
       )}
       metrics={[
         { icon: "target", value: metrics.feedbackCount === null ? "—" : metrics.feedbackCount.toLocaleString(), label: "Feedback received" },
-        { value: progress, label: "Target Achieved", emphasized: true },
+        { value: progress, label: "of Maximum Rating", emphasized: true },
       ]}
     />
   );

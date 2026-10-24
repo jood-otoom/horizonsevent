@@ -8,3 +8,8 @@ const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 export const supabase = dataMode === "live" && url && publishableKey
   ? createClient(url, publishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
+
+// The published map always reads Supabase aggregates, including when the event dashboard is in demo mode.
+export const mapSupabase = supabase ?? (url && publishableKey
+  ? createClient(url, publishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
+  : null);

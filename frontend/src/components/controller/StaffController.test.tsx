@@ -23,7 +23,9 @@ describe("StaffController", () => {
     expect(await screen.findByLabelText("0 completed meetings")).toBeTruthy();
     expect(screen.getByText("No ratings yet")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit Rating" }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByText("DEMO DATA")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "EVENT OPERATIONS Staff Controller" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check-ins Controller" })).toBeTruthy();
+    expect((screen.getByText(/Action History/).closest("details") as HTMLDetailsElement).open).toBe(false);
   });
 
   it("disables a pending meeting action and ignores a rapid second click", async () => {
@@ -97,15 +99,21 @@ describe("StaffController", () => {
     expect(await screen.findByLabelText("0 completed meetings")).toBeTruthy();
   });
 
-  it("confirms a specific +3 correction and keeps the original action visible", async () => {
-    render(<StaffController service={createMockControllerService({ delayMs: 0 })} />);
+  it("reverses a specific +3 action on one click and keeps the original visible", async () => {
+    const service = createMockControllerService({ delayMs: 30 });
+    const undo = vi.spyOn(service, "undoAction");
+    render(<StaffController service={service} />);
     fireEvent.click(await screen.findByRole("button", { name: "3 Meetings" }));
     await screen.findByLabelText("3 completed meetings");
-    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
-    expect(screen.getByText(/Undo \+3 meetings from/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Confirm undo" }).hasAttribute("disabled")).toBe(true);
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "wrong_count" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm undo" }));
+    fireEvent.click(screen.getByText(/Action History/));
+    const undoButton = await screen.findByRole("button", { name: "Undo" });
+    fireEvent.click(undoButton);
+    fireEvent.click(undoButton);
+    expect(undo).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Reversing action…")).toBeTruthy();
+    expect(screen.queryByLabelText("Reason")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Confirm undo" })).toBeNull();
+    await waitFor(() => expect(undo).toHaveBeenCalledWith(expect.objectContaining({ reason: "other" })));
     expect(await screen.findByLabelText("0 completed meetings")).toBeTruthy();
     expect(await screen.findByText("Reversed")).toBeTruthy();
     expect(screen.getByText("Selected meeting action reversed. Total: 0.")).toBeTruthy();
@@ -116,13 +124,52 @@ describe("StaffController", () => {
     render(<StaffController service={createMockControllerService({ delayMs: 0, failNext: { undo: 1 } })} />);
     fireEvent.click(await screen.findByRole("button", { name: "1 Meeting" }));
     await screen.findByLabelText("1 completed meetings");
+    fireEvent.click(screen.getByText(/Action History/));
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "duplicate" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm undo" }));
     expect(await screen.findByText(/Correction was not confirmed/)).toBeTruthy();
     expect(screen.getByLabelText("1 completed meetings")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Retry undo" }));
     expect(await screen.findByLabelText("0 completed meetings")).toBeTruthy();
     expect(nextId).toBe(3);
+  });
+
+  it("reveals check-ins on demand, saves one, and hides without reversing it", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 6 });
+    render(<StaffController service={service} />);
+    await screen.findByRole("button", { name: "Check-ins Controller" });
+    expect(screen.queryByRole("heading", { name: "CHECK-INS Controller" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check-ins Controller" }));
+    expect(await screen.findByText("of 6 registered")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "+1 Check-in" }));
+    expect(await screen.findByText("Check-in saved. Total: 5.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("heading", { name: "CHECK-INS Controller" })).toBeNull();
+    expect((await service.getCheckins()).checkedIn).toBe(5);
+    fireEvent.click(screen.getByRole("button", { name: "Check-ins Controller" }));
+    expect(await screen.findByText("of 6 registered")).toBeTruthy();
+    expect(screen.getByText("Check-in saved. Total: 5.")).toBeTruthy();
+  });
+
+  it("limits expanded history to the five newest combined actions", async () => {
+    const service = createMockControllerService({ delayMs: 0 });
+    for (let index = 0; index < 6; index++) {
+      await service.submitMeeting({ requestId: `history-${index}`, quantity: 1 });
+    }
+    render(<StaffController service={service} />);
+    await screen.findByLabelText("6 completed meetings");
+    fireEvent.click(screen.getByText(/Action History/));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(5));
+    expect((await service.getStats()).completedMeetings).toBe(6);
+  });
+
+  it("keeps an in-flight check-in when the panel is hidden", async () => {
+    const service = createMockControllerService({ delayMs: 35, initialCheckins: 4, registered: 6 });
+    render(<StaffController service={service} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Check-ins Controller" }));
+    fireEvent.click(await screen.findByRole("button", { name: "+1 Check-in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await waitFor(async () => expect((await service.getCheckins()).checkedIn).toBe(5));
+    fireEvent.click(screen.getByRole("button", { name: "Check-ins Controller" }));
+    expect(await screen.findByText("Check-in saved. Total: 5.")).toBeTruthy();
   });
 });

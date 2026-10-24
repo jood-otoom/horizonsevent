@@ -63,7 +63,7 @@ function record(value: unknown, field: string): Record<string, unknown> {
 }
 
 function identifier(value: unknown, field: string): string {
-  if (typeof value === "string" && value.trim()) return value;
+  if (typeof value === "string" && value.length > 0 && value === value.trim()) return value;
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
   throw new B2matchSyncError("invalid_response", field, responseValueKind(value));
 }
@@ -92,11 +92,16 @@ export function parseParticipantPage(value: unknown, eventId: string): Participa
   const token = pagination.nextPageToken;
   const previousToken = pagination.previousPageToken;
   if (pageItems !== body.participants.length) throw new B2matchSyncError("invalid_response", "pagination.pageItems");
-  if (typeof currentPage !== "string") {
+  if (pageItems > PAGE_SIZE) throw new B2matchSyncError("invalid_response", "pagination.pageItems");
+  if (typeof currentPage !== "string" || (currentPage.length > 0 && !currentPage.trim())) {
     throw new B2matchSyncError("invalid_response", "pagination.currentPage", responseValueKind(currentPage));
   }
-  if (token !== null && typeof token !== "string") throw new B2matchSyncError("invalid_response", "pagination.nextPageToken", responseValueKind(token));
-  if (previousToken !== null && typeof previousToken !== "string") throw new B2matchSyncError("invalid_response", "pagination.previousPageToken", responseValueKind(previousToken));
+  if (token !== null && (typeof token !== "string" || (token.length > 0 && !token.trim()))) {
+    throw new B2matchSyncError("invalid_response", "pagination.nextPageToken", responseValueKind(token));
+  }
+  if (previousToken !== null && (typeof previousToken !== "string" || (previousToken.length > 0 && !previousToken.trim()))) {
+    throw new B2matchSyncError("invalid_response", "pagination.previousPageToken", responseValueKind(previousToken));
+  }
 
   const participants = body.participants.map((raw) => {
     const item = record(raw, "participants[]");
@@ -130,7 +135,7 @@ export function parseParticipantPage(value: unknown, eventId: string): Participa
     });
     return { id, eventId, status: item.status, checkIns };
   });
-  return { participants, pagination: { totalItems, pageItems, currentPage, nextPageToken: token || null } };
+  return { participants, pagination: { totalItems, pageItems, currentPage, nextPageToken: token } };
 }
 
 function retryDelay(response: Response | null, attempt: number): number {
@@ -233,6 +238,11 @@ export async function fetchAllParticipantsWithStats(options: B2matchClientOption
     }
     completedPages = pageNumber;
     nextToken = page.pagination.nextPageToken;
+    // An empty token is accepted only when token-independent checks show
+    // a short final page with every expected unique participant retrieved.
+    if (nextToken === "" && (rawCount !== total || page.pagination.pageItems === PAGE_SIZE || participants.size !== rawCount)) {
+      throw new B2matchSyncError("incomplete_pagination");
+    }
     if (!nextToken) {
       if (rawCount !== total) throw new B2matchSyncError("incomplete_pagination");
       return { participants: [...participants.values()], pagesProcessed: pageNumber, recordsProcessed: rawCount, requestsMade };

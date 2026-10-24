@@ -22,9 +22,7 @@ export default function FeedbackController({ stats, state, message, onSubmit }: 
   return (
     <section className="controller-card" aria-labelledby="grow-heading">
       <div className="controller-card-heading">
-        <span className="controller-pillar-number">02 / GROW</span>
-        <h2 id="grow-heading">Meeting Feedback</h2>
-        <p>Select the rating shared after a meeting.</p>
+        <h2 id="grow-heading">GROW Controller</h2>
       </div>
       <div className="controller-rating-group" role="group" aria-label="Meeting rating">
         {ratings.map((rating) => (
@@ -53,7 +51,7 @@ export default function FeedbackController({ stats, state, message, onSubmit }: 
         {state === "pending" ? "Submitting…" : state === "error" ? "Retry Rating" : "Submit Rating"}
       </button>
       <p className={`controller-message controller-message-${state}`} role="status" aria-live="polite">
-        {message || (stats.dataMode === "mock" ? "Each submission creates one synthetic feedback record." : "Each submission saves one rating.")}
+        {message}
       </p>
       <dl className="controller-feedback-stats">
         <div>

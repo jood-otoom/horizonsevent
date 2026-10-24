@@ -3,7 +3,7 @@ import type { ControllerService } from "./controllerService";
 import { fetchLiveDashboard } from "./dashboardService";
 import type {
   ControllerAction, ControllerStats, FeedbackSubmissionResponse, MeetingSubmissionResponse,
-  UndoResponse,
+  UndoResponse, CheckinStatus, CheckinSubmissionResponse, ReconcileCheckinsRequest,
 } from "../types/controller";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -56,19 +56,70 @@ export function parseActions(value: unknown): ControllerAction[] {
           !Number.isFinite(Date.parse(action.reversedAt))))) {
       throw new Error("Invalid controller history.");
     }
+    const operation = action.operation === undefined ? "submission" : action.operation;
+    if (operation !== "submission" && operation !== "undo" && operation !== "reconcile") {
+      throw new Error("Invalid controller history.");
+    }
+    const undoEligible = action.undoEligible === undefined ? action.reversedAt === null : action.undoEligible;
+    if (typeof undoEligible !== "boolean") throw new Error("Invalid controller history.");
+    if (operation === "reconcile" && action.kind === "checkin" && action.quantity === null &&
+        action.rating === null && Number.isSafeInteger(action.value) && Number(action.value) >= 0) {
+      return { requestId: action.requestId, kind: "checkin", operation, quantity: null,
+        rating: null, value: Number(action.value), createdAt: action.createdAt,
+        reversedAt: null, undoEligible: false };
+    }
+    const validUndoShape = action.kind === "meeting"
+      ? (action.quantity === 1 || action.quantity === 2 || action.quantity === 3) && action.rating === null
+      : action.kind === "feedback"
+        ? action.quantity === null && Number.isInteger(action.rating) && Number(action.rating) >= 1 && Number(action.rating) <= 5
+        : action.kind === "checkin" && action.quantity === 1 && action.rating === null;
+    if (operation === "undo" && validUndoShape &&
+        typeof action.originalRequestId === "string" && uuid.test(action.originalRequestId) &&
+        action.reversedAt === null) {
+      return { requestId: action.requestId, kind: action.kind as ControllerAction["kind"], operation, originalRequestId: action.originalRequestId,
+        quantity: action.quantity as ControllerAction["quantity"], rating: action.rating as ControllerAction["rating"],
+        createdAt: action.createdAt, reversedAt: null, undoEligible: false };
+    }
+    if (operation !== "submission") throw new Error("Invalid controller history.");
     if (action.kind === "meeting" && (action.quantity === 1 || action.quantity === 2 || action.quantity === 3) &&
         action.rating === null) {
-      return { requestId: action.requestId, kind: "meeting", quantity: action.quantity,
-        rating: null, createdAt: action.createdAt, reversedAt: action.reversedAt as string | null };
+      return { requestId: action.requestId, kind: "meeting", operation, quantity: action.quantity,
+        rating: null, createdAt: action.createdAt, reversedAt: action.reversedAt as string | null, undoEligible };
     }
     if (action.kind === "feedback" && Number.isInteger(action.rating) &&
         Number(action.rating) >= 1 && Number(action.rating) <= 5 && action.quantity === null) {
-      return { requestId: action.requestId, kind: "feedback", quantity: null,
+      return { requestId: action.requestId, kind: "feedback", operation, quantity: null,
         rating: action.rating as ControllerAction["rating"], createdAt: action.createdAt,
-        reversedAt: action.reversedAt as string | null };
+        reversedAt: action.reversedAt as string | null, undoEligible };
+    }
+    if (action.kind === "checkin" && action.quantity === 1 && action.rating === null) {
+      return { requestId: action.requestId, kind: "checkin", operation, quantity: 1, rating: null,
+        createdAt: action.createdAt, reversedAt: action.reversedAt as string | null, undoEligible };
     }
     throw new Error("Invalid controller history.");
   });
+}
+
+export function parseCheckins(value: unknown): CheckinStatus {
+  if (!value || typeof value !== "object") throw new Error("Invalid check-in status.");
+  const status = value as Record<string, unknown>;
+  const count = (item: unknown) => item === null || (Number.isSafeInteger(item) && Number(item) >= 0);
+  if ((status.mode !== "api" && status.mode !== "manual") ||
+      !count(status.registered) || !count(status.checkedIn) || !count(status.apiCheckedIn) ||
+      (status.apiAsOf !== null && (typeof status.apiAsOf !== "string" ||
+        !Number.isFinite(Date.parse(status.apiAsOf)))) ||
+      typeof status.canReconcile !== "boolean" ||
+      (status.registered !== null && status.checkedIn !== null &&
+        Number(status.checkedIn) > Number(status.registered))) {
+    throw new Error("Invalid check-in status.");
+  }
+  return status as unknown as CheckinStatus;
+}
+
+function parseCheckinSubmission(value: unknown): CheckinSubmissionResponse {
+  if (!value || typeof value !== "object") throw new Error("Invalid check-in response.");
+  const response = value as Record<string, unknown>;
+  return { record: parseRecord(response.record), checkins: parseCheckins(response.checkins) };
 }
 
 export const liveControllerService: ControllerService = {
@@ -83,6 +134,11 @@ export const liveControllerService: ControllerService = {
     const { data, error } = await client().functions.invoke("controller-submit", { method: "GET" });
     if (error) throw new Error("Recent actions are unavailable.");
     return parseActions(data);
+  },
+  async getCheckins() {
+    const { data, error } = await client().functions.invoke("controller-submit?view=checkins", { method: "GET" });
+    if (error) throw new Error("Check-in status is unavailable.");
+    return parseCheckins((data as Record<string, unknown>)?.checkins);
   },
   async submitMeeting({ requestId, quantity = 1 }): Promise<MeetingSubmissionResponse> {
     const { data, error } = await client().functions.invoke("controller-submit", {
@@ -102,6 +158,20 @@ export const liveControllerService: ControllerService = {
     const record = parseRecord(response?.record);
     if (record.rating !== rating) throw new Error("Invalid controller response.");
     return { record: { ...record, rating }, stats: parseStats(response?.stats) };
+  },
+  async submitCheckin({ requestId }): Promise<CheckinSubmissionResponse> {
+    const { data, error } = await client().functions.invoke("controller-submit", {
+      method: "POST", body: { eventId: 17135, kind: "checkin", requestId },
+    });
+    if (error) throw new Error("Check-in was not confirmed.");
+    return parseCheckinSubmission(data);
+  },
+  async reconcileCheckins(request: ReconcileCheckinsRequest): Promise<CheckinSubmissionResponse> {
+    const { data, error } = await client().functions.invoke("controller-submit", {
+      method: "POST", body: { eventId: 17135, kind: "reconcile_checkins", ...request },
+    });
+    if (error) throw new Error("Reconciliation was not confirmed.");
+    return parseCheckinSubmission(data);
   },
   async undoAction({ requestId, originalRequestId, reason }): Promise<UndoResponse> {
     const { data, error } = await client().functions.invoke("controller-submit", {

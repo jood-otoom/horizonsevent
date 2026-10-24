@@ -1,7 +1,9 @@
 import type { ControllerService } from "../../services/controllerService";
 import { useControllerData } from "../../hooks/useControllerData";
+import { useState } from "react";
 import ControllerHeader from "./ControllerHeader";
 import ControllerHistory from "./ControllerHistory";
+import CheckinController from "./CheckinController";
 import FeedbackController from "./FeedbackController";
 import MeetingController from "./MeetingController";
 import { dataMode } from "../../lib/supabaseClient";
@@ -13,15 +15,12 @@ interface StaffControllerProps {
 export default function StaffController({ service }: StaffControllerProps) {
   const controller = useControllerData(service);
   const { statsState } = controller;
+  const [checkinsOpen, setCheckinsOpen] = useState(false);
 
   return (
     <main className="controller-shell">
       <div className="controller-layout">
         <ControllerHeader />
-        <div className="controller-intro">
-          <p className="controller-kicker">NEW HORIZONS 2026 <span aria-hidden="true">/</span> OPERATIONS</p>
-          <p>Two quick actions. One clear record of progress.</p>
-        </div>
         {statsState.status === "loading" && (
           <div className="controller-load-state" role="status">Loading {dataMode === "live" ? "event" : "demo"} statistics…</div>
         )}
@@ -49,19 +48,29 @@ export default function StaffController({ service }: StaffControllerProps) {
               onSubmit={controller.submitFeedback}
             />
           </div>
+          {checkinsOpen ? (
+            <CheckinController status={controller.checkins} state={controller.checkinState}
+              message={controller.checkinMessage} reconcileState={controller.reconcileState}
+              reconcileMessage={controller.reconcileMessage} onSubmit={controller.submitCheckin}
+              onReconcile={controller.reconcileCheckins} onRefresh={controller.loadCheckins}
+              onHide={() => setCheckinsOpen(false)} />
+          ) : (
+            <button className="controller-checkin-toggle controller-secondary-action" type="button"
+              onClick={() => { setCheckinsOpen(true); void controller.loadCheckins(); }}>
+              Check-ins Controller
+            </button>
+          )}
           <ControllerHistory
             status={controller.historyState.status}
             actions={controller.historyState.actions}
             undoState={controller.undoState}
             message={controller.undoMessage}
             retryOriginalRequestId={controller.undoRetryOriginalRequestId}
-            retryReason={controller.undoRetryReason}
             onUndo={controller.undoAction}
             onRefresh={controller.loadActions}
           />
           </>
         )}
-        <p className="controller-footer-note">{dataMode === "live" ? "Authorized event operations · Saved records" : "Development preview · Session-only synthetic data · Refresh resets this controller"}</p>
       </div>
     </main>
   );

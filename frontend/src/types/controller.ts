@@ -3,11 +3,36 @@ export type CorrectionReason = "duplicate" | "wrong_count" | "wrong_rating" | "o
 
 export interface ControllerAction {
   requestId: string;
-  kind: "meeting" | "feedback";
+  kind: "meeting" | "feedback" | "checkin";
+  operation?: "submission" | "undo" | "reconcile";
   quantity: 1 | 2 | 3 | null;
   rating: Rating | null;
+  value?: number | null;
+  originalRequestId?: string | null;
   createdAt: string;
   reversedAt: string | null;
+  undoEligible?: boolean;
+}
+
+export interface CheckinStatus {
+  mode: "api" | "manual";
+  registered: number | null;
+  checkedIn: number | null;
+  apiCheckedIn: number | null;
+  apiAsOf: string | null;
+  canReconcile: boolean;
+}
+
+export interface CheckinSubmissionResponse {
+  record: { id: string; createdAt: string };
+  checkins: CheckinStatus;
+}
+
+export interface ReconcileCheckinsRequest {
+  requestId: string;
+  expectedManual: number;
+  expectedApi: number;
+  expectedApiAt: string;
 }
 
 export interface MeetingRecord {

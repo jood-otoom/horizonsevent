@@ -3,6 +3,9 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export type Submission =
   | { kind: "meeting"; requestId: string; quantity: 1 | 2 | 3 }
   | { kind: "feedback"; requestId: string; rating: 1 | 2 | 3 | 4 | 5 }
+  | { kind: "checkin"; requestId: string }
+  | { kind: "reconcile_checkins"; requestId: string; expectedManual: number;
+      expectedApi: number; expectedApiAt: string }
   | { kind: "undo"; requestId: string; originalRequestId: string;
       reason: "duplicate" | "wrong_count" | "wrong_rating" | "other" };
 
@@ -16,6 +19,15 @@ export function parseSubmission(value: unknown): Submission {
   }
   if (body.kind === "feedback" && Number.isInteger(body.rating) && Number(body.rating) >= 1 && Number(body.rating) <= 5) {
     return { kind: "feedback", requestId: body.requestId, rating: body.rating as 1 | 2 | 3 | 4 | 5 };
+  }
+  if (body.kind === "checkin") return { kind: "checkin", requestId: body.requestId };
+  if (body.kind === "reconcile_checkins" && Number.isSafeInteger(body.expectedManual) &&
+      Number(body.expectedManual) >= 0 && Number.isSafeInteger(body.expectedApi) &&
+      Number(body.expectedApi) >= 0 && typeof body.expectedApiAt === "string" &&
+      Number.isFinite(Date.parse(body.expectedApiAt))) {
+    return { kind: "reconcile_checkins", requestId: body.requestId,
+      expectedManual: Number(body.expectedManual), expectedApi: Number(body.expectedApi),
+      expectedApiAt: body.expectedApiAt };
   }
   if (body.kind === "undo" && typeof body.originalRequestId === "string" &&
       uuid.test(body.originalRequestId) && body.originalRequestId !== body.requestId &&

@@ -8,7 +8,7 @@ describe("formatEventDateTime", () => {
     expect(EVENT_TIME_ZONE).toBe("Asia/Amman");
     expect(result).toEqual({
       date: "Tue, Apr 14, 2026",
-      time: "10:24 AM",
+      time: "10:24:00 AM",
     });
   });
 });

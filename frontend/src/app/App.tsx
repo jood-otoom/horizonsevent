@@ -3,6 +3,7 @@ import Dashboard from "../components/dashboard/Dashboard";
 import StaffController from "../components/controller/StaffController";
 import { dataMode } from "../lib/supabaseClient";
 import LiveAccess from "./LiveAccess";
+import MapDashboard from "../pages/MapDashboard";
 
 interface AppProps {
   pathname?: string;
@@ -14,6 +15,8 @@ export default function App({ pathname = window.location.pathname }: AppProps) {
   useEffect(() => {
     document.title = route === "/controller"
       ? `New Horizons 2026 — Staff Controller${dataMode === "demo" ? " (Demo)" : ""}`
+      : route === "/map"
+        ? "New Horizons 2026 — Jordan Startup Map"
       : route === "/"
         ? "New Horizons 2026 — Live Dashboard"
         : "Page not found — New Horizons 2026";
@@ -23,6 +26,7 @@ export default function App({ pathname = window.location.pathname }: AppProps) {
     ? <LiveAccess staffOnly={false}><Dashboard /></LiveAccess> : <Dashboard />;
   if (route === "/controller") return dataMode === "live"
     ? <LiveAccess staffOnly><StaffController /></LiveAccess> : <StaffController />;
+  if (route === "/map") return <MapDashboard />;
 
   return (
     <main className="route-not-found">

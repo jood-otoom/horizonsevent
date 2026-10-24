@@ -41,6 +41,11 @@ describe("mock controller provider", () => {
     await expect(service.submitMeeting({ requestId: "batch", quantity: 2 })).rejects.toThrow();
   });
 
+  it("records exactly two meetings from a +2 request", async () => {
+    const service = createMockControllerService({ delayMs: 0 });
+    expect((await service.submitMeeting({ requestId: "pair", quantity: 2 })).stats.completedMeetings).toBe(2);
+  });
+
   it("deduplicates simultaneous taps with the same ID", async () => {
     const service = createMockControllerService({ delayMs: 1 });
     const results = await Promise.all([
@@ -104,5 +109,38 @@ describe("mock controller provider", () => {
     expect(result.stats.feedbackCount).toBe(1);
     expect(result.stats.averageRating).toBe(5);
     expect((await service.undoAction(request)).stats.feedbackCount).toBe(1);
+  });
+
+  it("keeps manual check-ins distinct from a recovered API count until explicit reconciliation", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4,
+      registered: 6, recoveredApiCheckins: 5 });
+    const first = await service.submitCheckin({ requestId: "checkin-1" });
+    const retry = await service.submitCheckin({ requestId: "checkin-1" });
+    expect(first.checkins.checkedIn).toBe(5);
+    expect(retry.checkins.checkedIn).toBe(5);
+    expect(retry.checkins.apiCheckedIn).toBe(5);
+    expect(retry.checkins.mode).toBe("manual");
+    const second = await service.submitCheckin({ requestId: "checkin-2" });
+    expect(second.checkins.checkedIn).toBe(6);
+    await expect(service.submitCheckin({ requestId: "checkin-3" })).rejects.toThrow();
+    const undo = await service.undoAction({ requestId: "undo-checkin", originalRequestId: "checkin-2", reason: "duplicate" });
+    expect(undo.reversal.id).toBe("undo-checkin");
+    expect((await service.getCheckins()).checkedIn).toBe(5);
+    expect((await service.getRecentActions()).find(action => action.requestId === "checkin-2")?.reversedAt).not.toBeNull();
+    const current = await service.getCheckins();
+    const reconciled = await service.reconcileCheckins({ requestId: "reconcile", expectedManual: 5,
+      expectedApi: 5, expectedApiAt: current.apiAsOf! });
+    expect(reconciled.checkins.mode).toBe("api");
+    expect((await service.getRecentActions()).find(action => action.requestId === "checkin-1")?.undoEligible).toBe(false);
+  });
+
+  it("serializes distinct synthetic check-in requests without losing either increment", async () => {
+    const service = createMockControllerService({ delayMs: 1, initialCheckins: 4, registered: 6 });
+    await Promise.all([
+      service.submitCheckin({ requestId: "staff-one" }),
+      service.submitCheckin({ requestId: "staff-two" }),
+    ]);
+    expect((await service.getCheckins()).checkedIn).toBe(6);
+    expect((await service.getRecentActions()).filter(action => action.kind === "checkin")).toHaveLength(2);
   });
 });

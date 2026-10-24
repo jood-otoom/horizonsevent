@@ -3,7 +3,7 @@ import type { ControllerService } from "../services/controllerService";
 import { mockControllerService } from "../services/mockControllerProvider";
 import { liveControllerService } from "../services/liveControllerService";
 import { dataMode } from "../lib/supabaseClient";
-import type { ControllerAction, ControllerStats, CorrectionReason, Rating } from "../types/controller";
+import type { CheckinStatus, ControllerAction, ControllerStats, Rating, ReconcileCheckinsRequest, UndoRequest } from "../types/controller";
 
 type StatsState =
   | { status: "loading"; stats: null }
@@ -19,17 +19,27 @@ export function useControllerData(service: ControllerService = dataMode === "liv
   const [meetingState, setMeetingState] = useState<SubmissionState>("idle");
   const [feedbackState, setFeedbackState] = useState<SubmissionState>("idle");
   const [undoState, setUndoState] = useState<SubmissionState>("idle");
+  const [checkinState, setCheckinState] = useState<SubmissionState>("idle");
+  const [reconcileState, setReconcileState] = useState<SubmissionState>("idle");
+  const [checkins, setCheckins] = useState<{ status: "loading" | "error" | "ready"; data: CheckinStatus | null }>({ status: "loading", data: null });
   const [historyState, setHistoryState] = useState<HistoryState>({ status: "loading", actions: [] });
   const [meetingMessage, setMeetingMessage] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [undoMessage, setUndoMessage] = useState("");
+  const [checkinMessage, setCheckinMessage] = useState("");
+  const [reconcileMessage, setReconcileMessage] = useState("");
   const meetingRequest = useRef<{ requestId: string; quantity: 1 | 2 | 3 } | null>(null);
   const feedbackRequest = useRef<{ requestId: string; rating: Rating } | null>(null);
-  const undoRequest = useRef<{ requestId: string; originalRequestId: string; reason: CorrectionReason } | null>(null);
+  const undoRequest = useRef<UndoRequest | null>(null);
+  const checkinRequest = useRef<{ requestId: string } | null>(null);
+  const reconcileRequest = useRef<ReconcileCheckinsRequest | null>(null);
   const meetingPending = useRef(false);
   const feedbackPending = useRef(false);
   const undoPending = useRef(false);
+  const checkinPending = useRef(false);
+  const reconcilePending = useRef(false);
   const historyRead = useRef(0);
+  const checkinRead = useRef(0);
 
   async function loadStats() {
     setStatsState({ status: "loading", stats: null });
@@ -48,15 +58,28 @@ export function useControllerData(service: ControllerService = dataMode === "liv
         setHistoryState({ status: "ready", actions });
         const uncertain = undoRequest.current;
         if (uncertain && actions.some((action) => action.requestId === uncertain.originalRequestId &&
-            action.reversedAt !== null)) {
+            action.reversedAt !== null || action.operation === "undo" &&
+            action.originalRequestId === uncertain?.originalRequestId)) {
           undoRequest.current = null;
           setUndoState("success");
           setUndoMessage("This action is now reversed. The displayed totals are being refreshed.");
           void loadStats();
+          void loadCheckins();
         }
       }
     } catch {
       if (read === historyRead.current) setHistoryState((previous) => ({ ...previous, status: "error" }));
+    }
+  }
+
+  async function loadCheckins() {
+    const read = ++checkinRead.current;
+    setCheckins((previous) => ({ ...previous, status: "loading" }));
+    try {
+      const data = await service.getCheckins();
+      if (read === checkinRead.current) setCheckins({ status: "ready", data });
+    } catch {
+      if (read === checkinRead.current) setCheckins((previous) => ({ ...previous, status: "error" }));
     }
   }
 
@@ -120,27 +143,77 @@ export function useControllerData(service: ControllerService = dataMode === "liv
     }
   }
 
-  async function undoAction(originalRequestId: string, reason: CorrectionReason): Promise<boolean> {
+  async function submitCheckin() {
+    if (checkinPending.current || reconcilePending.current || checkins.status !== "ready" || !checkins.data) return;
+    checkinPending.current = true;
+    checkinRequest.current ??= { requestId: crypto.randomUUID() };
+    setCheckinState("pending");
+    setCheckinMessage("");
+    try {
+      const response = await service.submitCheckin(checkinRequest.current);
+      ++checkinRead.current;
+      setCheckins({ status: "ready", data: response.checkins });
+      checkinRequest.current = null;
+      setCheckinState("success");
+      setCheckinMessage(`Check-in saved. Total: ${response.checkins.checkedIn}.`);
+      void loadActions();
+    } catch {
+      setCheckinState("error");
+      setCheckinMessage("Check-in was not confirmed. Retry with the same submission ID.");
+    } finally {
+      checkinPending.current = false;
+    }
+  }
+
+  async function reconcileCheckins() {
+    const current = checkins.data;
+    if (reconcilePending.current || checkinPending.current || checkins.status !== "ready" || !current?.canReconcile ||
+        current.checkedIn === null || current.apiCheckedIn === null || current.apiAsOf === null) return;
+    reconcilePending.current = true;
+    reconcileRequest.current ??= { requestId: crypto.randomUUID(), expectedManual: current.checkedIn,
+      expectedApi: current.apiCheckedIn, expectedApiAt: current.apiAsOf };
+    setReconcileState("pending");
+    setReconcileMessage("");
+    try {
+      const response = await service.reconcileCheckins(reconcileRequest.current);
+      ++checkinRead.current;
+      setCheckins({ status: "ready", data: response.checkins });
+      reconcileRequest.current = null;
+      setReconcileState("success");
+      setReconcileMessage(`Verified API count is now displayed: ${response.checkins.checkedIn}.`);
+      void loadActions();
+    } catch {
+      setReconcileState("error");
+      setReconcileMessage("Source change was not confirmed. Refresh status or retry safely.");
+    } finally {
+      reconcilePending.current = false;
+    }
+  }
+
+  async function undoAction(originalRequestId: string): Promise<boolean> {
     const original = historyState.actions.find((action) => action.requestId === originalRequestId);
     if (undoPending.current || statsState.status !== "ready" || historyState.status !== "ready" ||
-        !original || original.reversedAt !== null) {
+        !original || original.reversedAt !== null || original.undoEligible === false) {
       return false;
     }
-    if (undoRequest.current && (undoRequest.current.originalRequestId !== originalRequestId ||
-        undoRequest.current.reason !== reason)) return false;
+    if (undoRequest.current && undoRequest.current.originalRequestId !== originalRequestId) return false;
     undoPending.current = true;
-    undoRequest.current ??= { requestId: crypto.randomUUID(), originalRequestId, reason };
+    undoRequest.current ??= { requestId: crypto.randomUUID(), originalRequestId, reason: "other" };
     setUndoState("pending");
-    setUndoMessage("");
+    setUndoMessage("Reversing action…");
     try {
       const response = await service.undoAction(undoRequest.current);
       setStatsState({ status: "ready", stats: response.stats });
       if (original.kind === "meeting") {
         setMeetingState("success");
         setMeetingMessage(`Selected meeting action reversed. Total: ${response.stats.completedMeetings}.`);
-      } else {
+      } else if (original.kind === "feedback") {
         setFeedbackState("success");
         setFeedbackMessage("Selected rating reversed. Feedback average updated.");
+      } else {
+        setCheckinState("success");
+        setCheckinMessage("Selected check-in reversed.");
+        void loadCheckins();
       }
       undoRequest.current = null;
       setUndoState("success");
@@ -161,18 +234,25 @@ export function useControllerData(service: ControllerService = dataMode === "liv
     meetingState,
     feedbackState,
     undoState,
+    checkinState,
+    reconcileState,
+    checkins,
     historyState,
     meetingMessage,
     meetingActiveQuantity: meetingRequest.current?.quantity,
     meetingRetryQuantity: meetingState === "error" ? meetingRequest.current?.quantity : undefined,
     feedbackMessage,
     undoMessage,
+    checkinMessage,
+    reconcileMessage,
     undoRetryOriginalRequestId: undoState === "error" ? undoRequest.current?.originalRequestId : undefined,
-    undoRetryReason: undoState === "error" ? undoRequest.current?.reason : undefined,
     loadStats,
     loadActions,
+    loadCheckins,
     submitMeeting,
     submitFeedback,
+    submitCheckin,
+    reconcileCheckins,
     undoAction,
   };
 }

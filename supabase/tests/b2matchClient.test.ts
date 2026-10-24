@@ -51,11 +51,27 @@ describe("b2match participant client", () => {
     expect(() => parseParticipantPage(missingToken, "17135")).toThrow();
     expect(parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, currentPage: "" } }, "17135")
       .pagination.currentPage).toBe("");
+    expect(parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, nextPageToken: "" } }, "17135")
+      .pagination.nextPageToken).toBe("");
+    expect(() => parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, nextPageToken: "  " } }, "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination.nextPageToken" }));
+    expect(() => parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, totalItems: undefined } }, "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination.totalItems" }));
+    expect(() => parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, pageItems: 1 } }, "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination.pageItems" }));
+    expect(() => parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, nextPageToken: 4 } }, "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination.nextPageToken" }));
+    expect(() => parseParticipantPage({ ...page([]), pagination: undefined }, "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination" }));
+    expect(() => parseParticipantPage(page(Array.from({ length: 51 }, (_, index) => participant(index))), "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "pagination.pageItems" }));
   });
 
   it("labels malformed fields without attaching participant values", () => {
     expect(() => parseParticipantPage(page([participant(1, { checkIns: undefined })]), "17135"))
       .toThrowError(expect.objectContaining({ code: "invalid_response", field: "participants[].checkIns", observedKind: "missing" }));
+    expect(() => parseParticipantPage(page([participant(1, { id: " 1 " })]), "17135"))
+      .toThrowError(expect.objectContaining({ code: "invalid_response", field: "participants[].id" }));
     expect(() => parseParticipantPage(page([participant(1, { checkIns: [{ type: "check_in" }] })]), "17135"))
       .toThrowError(expect.objectContaining({ code: "invalid_response", field: "participants[].checkIns[].locationType", observedKind: "missing" }));
     expect(() => parseParticipantPage({ ...page([]), pagination: { ...page([]).pagination, currentPage: null } }, "17135"))
@@ -86,6 +102,66 @@ describe("b2match participant client", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts a short final page with an empty token only after all expected unique records", async () => {
+    const pages = Array.from({ length: 5 }, (_, index) => {
+      const count = index === 4 ? 44 : 50;
+      const records = Array.from({ length: count }, (_, offset) => participant(index * 50 + offset + 1));
+      const body = page(records, 244, index === 4 ? "" : `token-${index + 1}`, index + 1);
+      return index === 0 ? { ...body, pagination: { ...body.pagination, currentPage: "" } } : body;
+    });
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const token = new URL(String(input)).searchParams.get("page");
+      const index = token === null ? 0 : Number(token.slice("token-".length));
+      return response(pages[index]);
+    });
+    const result = await fetchAllParticipantsWithStats(options(fetcher));
+    expect(result).toMatchObject({ pagesProcessed: 5, recordsProcessed: 244, requestsMade: 5 });
+    expect(result.participants).toHaveLength(244);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects an empty token before the reported total is reached", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) => response(
+      new URL(String(input)).searchParams.has("page")
+        ? page([participant(2)], 3, "", 2)
+        : page([participant(1)], 3, "next"),
+    ));
+    await expect(fetchAllParticipantsWithStats(options(fetcher)))
+      .rejects.toMatchObject({ code: "incomplete_pagination", pagesProcessed: 2, recordsProcessed: 2 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an empty token on a full page even when the reported total is reached", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => response(page(
+      Array.from({ length: 50 }, (_, index) => participant(index + 1)), 50, "",
+    )));
+    await expect(fetchAllParticipantsWithStats(options(fetcher)))
+      .rejects.toMatchObject({ code: "incomplete_pagination", pagesProcessed: 1, recordsProcessed: 50 });
+  });
+
+  it("continues to accept a null terminal token with a consistent total", async () => {
+    const result = await fetchAllParticipantsWithStats(options(async () => response(page([participant(1)], 1, null))));
+    expect(result).toMatchObject({ pagesProcessed: 1, recordsProcessed: 1 });
+    expect(result.participants.map((item) => item.id)).toEqual(["1"]);
+  });
+
+  it("rejects a changed total and does not let duplicate IDs justify an empty terminal token", async () => {
+    const changedTotal = vi.fn<typeof fetch>(async (input) => response(
+      new URL(String(input)).searchParams.has("page")
+        ? page([participant(2)], 3, "", 2)
+        : page([participant(1)], 2, "next"),
+    ));
+    await expect(fetchAllParticipantsWithStats(options(changedTotal)))
+      .rejects.toMatchObject({ code: "inconsistent_pagination" });
+    const repeatedId = vi.fn<typeof fetch>(async (input) => response(
+      new URL(String(input)).searchParams.has("page")
+        ? page([participant(1)], 2, "", 2)
+        : page([participant(1)], 2, "next"),
+    ));
+    await expect(fetchAllParticipantsWithStats(options(repeatedId)))
+      .rejects.toMatchObject({ code: "incomplete_pagination" });
+  });
+
   it.each([
     ["missing final token", [page([participant(1)], 2)]],
     ["repeated token", [page([participant(1)], 3, "repeat"), page([participant(2)], 3, "repeat", 2)]],
@@ -104,6 +180,9 @@ describe("b2match participant client", () => {
     expect(fetcher).not.toHaveBeenCalled();
     await expect(fetchAllParticipants(options(fetcher))).rejects.toThrow("upstream_unauthorized");
     expect(fetcher).toHaveBeenCalledTimes(1);
+    const forbidden = vi.fn<typeof fetch>(async () => response({}, 403));
+    await expect(fetchAllParticipants(options(forbidden))).rejects.toThrow("upstream_unauthorized");
+    expect(forbidden).toHaveBeenCalledTimes(1);
   });
 
   it("rejects redirects, invalid JSON, malformed fields, and partial network failures", async () => {
@@ -122,11 +201,29 @@ describe("b2match participant client", () => {
     const throttled = vi.fn<typeof fetch>(async () => response({}, 429, { "retry-after": "0" }));
     await expect(fetchAllParticipants(options(throttled))).rejects.toThrow("transient_upstream_failure");
     expect(throttled).toHaveBeenCalledTimes(3);
-    const aborting: typeof fetch = async (_input, init) => {
-      await new Promise<void>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
-      throw new Error("unreachable");
-    };
-    await expect(fetchAllParticipants({ ...options(aborting), now: (() => { let value = 0; return () => value += 60_000; })() })).rejects.toThrow();
+    const serverError = vi.fn<typeof fetch>(async () => response({}, 503));
+    await expect(fetchAllParticipants(options(serverError))).rejects.toThrow("transient_upstream_failure");
+    expect(serverError).toHaveBeenCalledTimes(3);
+    const excessiveDelay = vi.fn<typeof fetch>(async () => response({}, 429, { "retry-after": "121" }));
+    await expect(fetchAllParticipants(options(excessiveDelay))).rejects.toThrow("retry_after_exceeds_budget");
+    expect(excessiveDelay).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts and retries a hung request only three times", async () => {
+    vi.useFakeTimers();
+    try {
+      const aborting = vi.fn<typeof fetch>(async (_input, init) => {
+        await new Promise<void>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+        throw new Error("unreachable");
+      });
+      const pending = fetchAllParticipants(options(aborting));
+      const rejected = expect(pending).rejects.toThrow("network_failure");
+      await vi.advanceTimersByTimeAsync(36_000);
+      await rejected;
+      expect(aborting).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("counts every upstream attempt including successful retries", async () => {

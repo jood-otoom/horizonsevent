@@ -1,4 +1,4 @@
-import type { Participant } from "./b2matchClient.ts";
+import { B2matchSyncError, type Participant } from "./b2matchClient.ts";
 import { aggregateMeet, type MeetCounts } from "./meetAggregation.ts";
 
 export interface DryRunDiagnostics {
@@ -41,4 +41,11 @@ export function summarizeDryRun(participants: readonly Participant[], eventId: s
     counts: aggregateMeet(participants),
     diagnostics,
   };
+}
+
+export function requirePublishableMeet(participants: readonly Participant[], eventId: string): MeetCounts {
+  const summary = summarizeDryRun(participants, eventId);
+  if (summary.diagnostics.otherEventEntranceCheckIns > 0) throw new B2matchSyncError("wrong_event");
+  if (!summary.counts) throw new B2matchSyncError("unknown_participant_status");
+  return summary.counts;
 }

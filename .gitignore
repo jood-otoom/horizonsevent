@@ -18,3 +18,6 @@ coverage/
 
 # Operating system files
 .DS_Store
+
+# Supplied participant workbook contains contact information; commit only derived aggregates.
+Participants List.xlsx

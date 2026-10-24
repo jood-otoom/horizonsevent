@@ -1,6 +1,6 @@
 import { withSupabase } from "@supabase/server";
 import { B2matchSyncError, fetchAllParticipantsWithStats } from "../_shared/b2matchClient.ts";
-import { aggregateMeet } from "../_shared/meetAggregation.ts";
+import { requirePublishableMeet } from "../_shared/dryRunSummary.ts";
 import { handleNamedSecretRequest } from "../_shared/namedSecretAuth.ts";
 
 const secured = withSupabase({ auth: "secret:automations", cors: "disabled" }, async (request, ctx) => {
@@ -15,12 +15,16 @@ const secured = withSupabase({ auth: "secret:automations", cors: "disabled" }, a
   });
   if (claim.error) return Response.json({ status: "unavailable" }, { status: 503 });
   if (claim.data !== true) return Response.json({ status: "already_running" }, { status: 409 });
+  let pagesProcessed = 0;
+  let recordsProcessed = 0;
   try {
     const result = await fetchAllParticipantsWithStats({
       apiKey: Deno.env.get("B2MATCH_API_KEY") ?? "",
       eventId: "17135",
     });
-    const counts = aggregateMeet(result.participants);
+    pagesProcessed = result.pagesProcessed;
+    recordsProcessed = result.recordsProcessed;
+    const counts = requirePublishableMeet(result.participants, "17135");
     const publication = await ctx.supabaseAdmin.rpc("complete_meet_sync", {
       p_run_id: runId, p_token: token, p_registered: counts.registered,
       p_checked_in: counts.checkedIn, p_pages: result.pagesProcessed,
@@ -33,8 +37,8 @@ const secured = withSupabase({ auth: "secret:automations", cors: "disabled" }, a
     const code = error instanceof B2matchSyncError ? error.code : "unknown";
     await ctx.supabaseAdmin.rpc("fail_meet_sync", {
       p_run_id: runId, p_token: token, p_error: code,
-      p_pages: error instanceof B2matchSyncError ? error.pagesProcessed : 0,
-      p_records: error instanceof B2matchSyncError ? error.recordsProcessed : 0,
+      p_pages: error instanceof B2matchSyncError ? Math.max(error.pagesProcessed, pagesProcessed) : pagesProcessed,
+      p_records: error instanceof B2matchSyncError ? Math.max(error.recordsProcessed, recordsProcessed) : recordsProcessed,
     });
     return Response.json({ status: "failed" }, { status: 502 });
   }
