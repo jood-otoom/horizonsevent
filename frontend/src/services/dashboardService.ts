@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabasePublishableKey, supabaseUrl } from "../lib/supabaseClient";
 import type { DashboardMetrics, MeetMetrics } from "../types/dashboard";
 
@@ -76,10 +75,4 @@ export async function fetchLiveDashboard(fetcher: typeof fetch = fetch): Promise
   });
   if (!response.ok) throw new Error("Dashboard data is unavailable.");
   return parseLiveDashboardResponse(await response.json());
-}
-
-export async function fetchControllerDashboard(client: SupabaseClient): Promise<DashboardMetrics> {
-  const { data, error } = await client.functions.invoke("dashboard-data", { method: "GET" });
-  if (error) throw new Error("Dashboard data is unavailable.");
-  return parseLiveDashboardResponse(data);
 }

@@ -16,7 +16,7 @@ export default function LiveAccess({ children }: { children: ReactNode }) {
     const check = async () => {
       const { data: sessionData, error: sessionError } = await client.auth.getSession();
       if (!active) return;
-      if (sessionError) { setState("unavailable"); return; }
+      if (sessionError) { setState(sessionData.session ? "unavailable" : "signed-out"); return; }
       const user = sessionData.session?.user;
       if (!user) { setState("signed-out"); return; }
       const { data, error } = await client.from("event_memberships").select("role")

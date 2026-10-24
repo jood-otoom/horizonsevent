@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabaseClient";
 import type { ControllerService } from "./controllerService";
-import { fetchControllerDashboard } from "./dashboardService";
+import { fetchLiveDashboard } from "./dashboardService";
 import type {
   ControllerAction, ControllerStats, FeedbackSubmissionResponse, MeetingSubmissionResponse,
   UndoResponse, CheckinStatus, CheckinSubmissionResponse, ReconcileCheckinsRequest,
@@ -124,7 +124,7 @@ function parseCheckinSubmission(value: unknown): CheckinSubmissionResponse {
 
 export const liveControllerService: ControllerService = {
   async getStats() {
-    const dashboard = await fetchControllerDashboard(client());
+    const dashboard = await fetchLiveDashboard();
     return parseStats({
       dataMode: "live", completedMeetings: dashboard.match.completedMeetings,
       feedbackCount: dashboard.grow.feedbackCount, averageRating: dashboard.grow.averageRating,
