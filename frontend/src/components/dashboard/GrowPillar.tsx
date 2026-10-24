@@ -1,5 +1,6 @@
-import { formatPercent } from "../../lib/progress";
+import { calculateProgressPercent, formatPercent } from "../../lib/progress";
 import type { GrowMetrics } from "../../types/dashboard";
+import AnimatedCounter from "./AnimatedCounter";
 import PillarCard from "./PillarCard";
 import SemiCircularGauge from "./SemiCircularGauge";
 
@@ -27,7 +28,7 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
         <SemiCircularGauge
           value={average ?? 0}
           maxValue={metrics.maximumRating}
-          displayValue={average === null ? "—" : average.toFixed(1)}
+          displayValue={average === null ? "—" : <AnimatedCounter value={average} decimals={1} duration={700} />}
           label={metrics.feedbackCount === null ? "Data pending" : average === null ? "No feedback yet" : `of ${metrics.maximumRating.toFixed(1)}`}
           ariaLabel={metrics.feedbackCount === null ? "Meeting feedback data unavailable" : average === null
             ? "No meeting feedback has been submitted"
@@ -35,8 +36,9 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
         />
       )}
       metrics={[
-        { icon: "target", value: metrics.feedbackCount === null ? "—" : metrics.feedbackCount.toLocaleString(), label: "Feedback received" },
-        { value: progress, label: "of Maximum Rating", emphasized: true },
+        { icon: "target", value: metrics.feedbackCount === null ? "—" : <AnimatedCounter value={metrics.feedbackCount} />, label: "Feedback received" },
+        { value: average === null ? progress : <AnimatedCounter value={calculateProgressPercent(average, metrics.maximumRating)} suffix="%" />,
+          label: "of Maximum Rating", emphasized: true },
       ]}
     />
   );

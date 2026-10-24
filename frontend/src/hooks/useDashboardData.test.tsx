@@ -1,54 +1,49 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseLiveDashboardResponse } from "../services/dashboardService";
 import useDashboardData from "./useDashboardData";
+
+const response = (completedMeetings: number, meet: unknown = null) => parseLiveDashboardResponse({
+  eventId: 17135, meet,
+  match: { completedMeetings, targetMeetings: 1200 },
+  grow: { feedbackCount: 0, averageRating: null },
+});
 
 afterEach(() => vi.useRealTimers());
 
-describe("live dashboard refresh", () => {
-  it("keeps Strict Mode remounts on separate Realtime topics", async () => {
-    const topics: string[] = [];
-    const client = {
-      functions: { invoke: async () => ({ data: {
-        eventId: 17135, meet: null,
-        match: { completedMeetings: 1, targetMeetings: 1200 },
-        grow: { feedbackCount: 0, averageRating: null },
-      }, error: null }) },
-      channel: (topic: string) => {
-        topics.push(topic);
-        const channel = { on: () => channel, subscribe: () => channel };
-        return channel;
-      },
-      removeChannel: async () => "ok",
-    } as unknown as SupabaseClient;
-    const { unmount } = renderHook(() => useDashboardData({ mode: "live", client }), { wrapper: StrictMode });
+describe("public live dashboard refresh", () => {
+  it("keeps one polling interval per mount and cleans it up in Strict Mode", async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => response(1));
+    const { unmount } = renderHook(() => useDashboardData({ mode: "live", load }), { wrapper: StrictMode });
     await act(async () => { await Promise.resolve(); });
-    expect(topics).toHaveLength(2);
-    expect(new Set(topics).size).toBe(2);
+    const initialReads = load.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(load).toHaveBeenCalledTimes(initialReads + 1);
     unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(load).toHaveBeenCalledTimes(initialReads + 1);
+  });
+
+  it("retains the same React state for an unchanged authoritative response", async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => response(2));
+    const { result } = renderHook(() => useDashboardData({ mode: "live", load }));
+    await act(async () => { await Promise.resolve(); });
+    const first = result.current;
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(result.current).toBe(first);
   });
 
   it("retains aggregate counts but labels every source stale when a later read fails", async () => {
     vi.useFakeTimers();
-    let count = 0;
-    const channel = { on: () => channel, subscribe: () => channel };
-    const client = {
-      functions: { invoke: async () => {
-        count++;
-        return count === 1 ? { data: {
-          eventId: 17135,
-          meet: { registered: 10, checkedIn: 4, checkInRate: 40,
-            lastSuccessfulSync: "2026-10-10T10:00:00Z", status: "live", verification: "approved" },
-          match: { completedMeetings: 3, targetMeetings: null },
-          grow: { feedbackCount: 1, averageRating: 5 },
-        }, error: null } : { data: null, error: new Error("offline") };
-      } },
-      channel: () => channel,
-      removeChannel: async () => "ok",
-    } as unknown as SupabaseClient;
-    const { result } = renderHook(() => useDashboardData({ mode: "live", client }));
+    const meet = { registered: 10, checkedIn: 4, checkInRate: 40,
+      lastSuccessfulSync: "2026-10-10T10:00:00Z", status: "live", verification: "approved" };
+    const load = vi.fn().mockResolvedValueOnce(response(3, meet)).mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() => useDashboardData({ mode: "live", load }));
     await act(async () => { await Promise.resolve(); });
     expect(result.current.meet).toMatchObject({ status: "ready", data: { registered: 10, status: "live" } });
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
@@ -57,59 +52,31 @@ describe("live dashboard refresh", () => {
     expect(result.current.grow.status).toBe("stale");
   });
 
-  it("refetches authoritative aggregates after a Realtime change", async () => {
-    let onChange: (() => void) | undefined;
-    let reads = 0;
-    const channel = {
-      on: (_event: string, _filter: unknown, callback: () => void) => { onChange = callback; return channel; },
-      subscribe: () => channel,
-    };
-    const client = {
-      functions: { invoke: async () => ({ data: {
-        eventId: 17135, meet: null,
-        match: { completedMeetings: ++reads, targetMeetings: null },
-        grow: { feedbackCount: 0, averageRating: null },
-      }, error: null }) },
-      channel: () => channel,
-      removeChannel: async () => "ok",
-    } as unknown as SupabaseClient;
-    const { result, unmount } = renderHook(() => useDashboardData({ mode: "live", client }));
+  it("shows no demo values after a failed first live read", async () => {
+    const load = vi.fn(async () => { throw new Error("offline"); });
+    const { result } = renderHook(() => useDashboardData({ mode: "live", load }));
     await act(async () => { await Promise.resolve(); });
-    expect(result.current.match.completedMeetings).toBe(1);
-    await act(async () => { onChange?.(); await Promise.resolve(); });
-    expect(result.current.match.completedMeetings).toBe(2);
-    unmount();
+    expect(result.current.meet.status).toBe("error");
+    expect(result.current.match.completedMeetings).toBeNull();
+    expect(result.current.grow.feedbackCount).toBeNull();
   });
 
-  it("refetches after reconnect and does not drop a change during an active read", async () => {
-    let onChange: (() => void) | undefined;
-    let onStatus: ((status: string) => void) | undefined;
-    const pending: Array<(value: unknown) => void> = [];
-    const channel = {
-      on: (_event: string, _filter: unknown, callback: () => void) => { onChange = callback; return channel; },
-      subscribe: (callback: (status: string) => void) => { onStatus = callback; return channel; },
-    };
-    const client = {
-      functions: { invoke: () => new Promise((resolve) => pending.push(resolve)) },
-      channel: () => channel,
-      removeChannel: async () => "ok",
-    } as unknown as SupabaseClient;
-    const response = (completedMeetings: number) => ({ data: {
-      eventId: 17135, meet: null,
-      match: { completedMeetings, targetMeetings: 1200 },
-      grow: { feedbackCount: 0, averageRating: null },
-    }, error: null });
-    const { result, unmount } = renderHook(() => useDashboardData({ mode: "live", client }));
-    expect(pending).toHaveLength(1);
-    await act(async () => { onChange?.(); onStatus?.("SUBSCRIBED"); });
+  it("refetches on browser reconnection and queues a read when one is active", async () => {
+    const pending: Array<(value: ReturnType<typeof response>) => void> = [];
+    const load = vi.fn(() => new Promise<ReturnType<typeof response>>((resolve) => pending.push(resolve)));
+    const { result, unmount } = renderHook(() => useDashboardData({ mode: "live", load }));
+    expect(load).toHaveBeenCalledTimes(1);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
     await act(async () => { pending.shift()?.(response(0)); await Promise.resolve(); });
-    expect(pending).toHaveLength(1);
+    expect(load).toHaveBeenCalledTimes(2);
     await act(async () => { pending.shift()?.(response(1)); await Promise.resolve(); });
     expect(result.current.match.completedMeetings).toBe(1);
-    await act(async () => { onStatus?.("SUBSCRIBED"); });
-    expect(pending).toHaveLength(1);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(load).toHaveBeenCalledTimes(3);
     await act(async () => { pending.shift()?.(response(2)); await Promise.resolve(); });
     expect(result.current.match.completedMeetings).toBe(2);
     unmount();
+    window.dispatchEvent(new Event("online"));
+    expect(load).toHaveBeenCalledTimes(3);
   });
 });

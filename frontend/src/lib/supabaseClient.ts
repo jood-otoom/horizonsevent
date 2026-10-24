@@ -1,15 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 
-export const dataMode = import.meta.env.VITE_DATA_MODE === "live" ? "live" : "demo";
+const configuredDataMode = import.meta.env.VITE_DATA_MODE;
+if (configuredDataMode !== undefined && configuredDataMode !== "demo" && configuredDataMode !== "live") {
+  throw new Error("VITE_DATA_MODE must be demo or live.");
+}
+export const dataMode = configuredDataMode === "live" ? "live" : "demo";
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+export const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase = dataMode === "live" && url && publishableKey
-  ? createClient(url, publishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
+export const supabase = dataMode === "live" && supabaseUrl && supabasePublishableKey
+  ? createClient(supabaseUrl, supabasePublishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
 
 // The published map always reads Supabase aggregates, including when the event dashboard is in demo mode.
-export const mapSupabase = supabase ?? (url && publishableKey
-  ? createClient(url, publishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
+export const mapSupabase = supabase ?? (supabaseUrl && supabasePublishableKey
+  ? createClient(supabaseUrl, supabasePublishableKey, { auth: { persistSession: true, autoRefreshToken: true } })
   : null);

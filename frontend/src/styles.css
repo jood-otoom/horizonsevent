@@ -263,6 +263,8 @@ select { font: inherit; }
 
 .metric-value-emphasis { color: var(--display-red); }
 
+.animated-counter { display: inline-block; font-variant-numeric: tabular-nums; }
+
 .metric-label {
   margin-top: 0.23cqw;
   color: var(--display-blue);

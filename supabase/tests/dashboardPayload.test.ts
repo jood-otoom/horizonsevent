@@ -38,4 +38,11 @@ describe("safe dashboard payload", () => {
     expect(makeDashboardPayload({ ...row, registered: null, checked_in: null, check_in_rate: null,
       last_successful_sync: null }, settings).meet).toBeNull();
   });
+
+  it("rejects inconsistent aggregates before publishing a public payload", () => {
+    expect(() => makeDashboardPayload({ ...row, check_in_rate: 60 }, settings)).toThrow();
+    expect(() => makeDashboardPayload({ ...row, checked_in: null }, settings)).toThrow();
+    expect(() => makeDashboardPayload({ ...row, rating_sum: 11 }, settings)).toThrow();
+    expect(() => makeDashboardPayload(row, { ...settings, meeting_target: -1 })).toThrow();
+  });
 });

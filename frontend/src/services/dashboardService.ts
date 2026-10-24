@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabasePublishableKey, supabaseUrl } from "../lib/supabaseClient";
 import type { DashboardMetrics, MeetMetrics } from "../types/dashboard";
 
 export function getMockMeetMetrics(now = new Date()): MeetMetrics {
@@ -65,7 +66,19 @@ export function parseLiveDashboardResponse(value: unknown): DashboardMetrics {
   };
 }
 
-export async function fetchLiveDashboard(client: SupabaseClient): Promise<DashboardMetrics> {
+export async function fetchLiveDashboard(fetcher: typeof fetch = fetch): Promise<DashboardMetrics> {
+  if (!supabaseUrl || !supabasePublishableKey) throw new Error("Live configuration is missing.");
+  const response = await fetcher(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/public-dashboard-data`, {
+    method: "GET",
+    headers: { apikey: supabasePublishableKey },
+    credentials: "omit",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Dashboard data is unavailable.");
+  return parseLiveDashboardResponse(await response.json());
+}
+
+export async function fetchControllerDashboard(client: SupabaseClient): Promise<DashboardMetrics> {
   const { data, error } = await client.functions.invoke("dashboard-data", { method: "GET" });
   if (error) throw new Error("Dashboard data is unavailable.");
   return parseLiveDashboardResponse(data);

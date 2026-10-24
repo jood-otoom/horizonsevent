@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { dataMode, supabase } from "../lib/supabaseClient";
+import { dataMode, supabasePublishableKey, supabaseUrl } from "../lib/supabaseClient";
 import { fetchLiveDashboard, getMockMeetMetrics } from "../services/dashboardService";
 import { mockFeedbackProvider, mockMeetingProvider } from "../services/mockDashboardProvider";
 import type { DashboardMetrics, MeetMetrics, MetricResource } from "../types/dashboard";
@@ -29,16 +28,38 @@ function staleMeet(previous: MetricResource<MeetMetrics>): MetricResource<MeetMe
     : { status: "error", message: "Attendance data is unavailable." };
 }
 
-export default function useDashboardData(options?: { mode?: "demo" | "live"; client?: SupabaseClient }): DashboardMetrics {
+function sameDashboard(a: DashboardMetrics, b: DashboardMetrics): boolean {
+  if (a.dataMode !== b.dataMode || a.meet.status !== b.meet.status) return false;
+  if (a.meet.status === "ready" && b.meet.status === "ready") {
+    const oldMeet = a.meet.data;
+    const newMeet = b.meet.data;
+    if (oldMeet.dataMode !== newMeet.dataMode || oldMeet.status !== newMeet.status ||
+        oldMeet.registered !== newMeet.registered || oldMeet.checkedIn !== newMeet.checkedIn ||
+        oldMeet.checkInRate !== newMeet.checkInRate || oldMeet.asOf !== newMeet.asOf) return false;
+  } else if (a.meet.status === "error" && b.meet.status === "error" && a.meet.message !== b.meet.message) {
+    return false;
+  }
+  return a.match.dataMode === b.match.dataMode && a.match.status === b.match.status &&
+    a.match.completedMeetings === b.match.completedMeetings && a.match.targetMeetings === b.match.targetMeetings &&
+    a.grow.dataMode === b.grow.dataMode && a.grow.status === b.grow.status &&
+    a.grow.feedbackCount === b.grow.feedbackCount && a.grow.averageRating === b.grow.averageRating &&
+    a.grow.maximumRating === b.grow.maximumRating;
+}
+
+export default function useDashboardData(options?: { mode?: "demo" | "live"; load?: typeof fetchLiveDashboard }): DashboardMetrics {
   const mode = options?.mode ?? dataMode;
-  const liveClient = options?.client ?? supabase;
+  const load = options?.load ?? fetchLiveDashboard;
   const [metrics, setMetrics] = useState<DashboardMetrics>(() => mode === "live" ? pendingDashboard() : demoDashboard());
 
   useEffect(() => {
     if (mode !== "live") return;
-    const client = liveClient;
-    if (!client) {
-      setMetrics((previous) => ({ ...previous, meet: { status: "error", message: "Live configuration is missing." } }));
+    if (load === fetchLiveDashboard && (!supabaseUrl || !supabasePublishableKey)) {
+      setMetrics((previous) => ({
+        ...previous,
+        meet: { status: "error", message: "Live configuration is missing." },
+        match: { ...previous.match, status: "stale" },
+        grow: { ...previous.grow, status: "stale" },
+      }));
       return;
     }
     let active = true;
@@ -48,8 +69,8 @@ export default function useDashboardData(options?: { mode?: "demo" | "live"; cli
       if (inFlight) { refreshQueued = true; return; }
       inFlight = true;
       try {
-        const next = await fetchLiveDashboard(client);
-        if (active) setMetrics(next);
+        const next = await load();
+        if (active) setMetrics((previous) => sameDashboard(previous, next) ? previous : next);
       } catch {
         if (active) setMetrics((previous) => ({
           ...previous,
@@ -66,17 +87,15 @@ export default function useDashboardData(options?: { mode?: "demo" | "live"; cli
       }
     };
     void refresh();
-    // Distinct topics prevent a Strict Mode cleanup from closing the next mount's subscription.
-    const channel = client.channel(`dashboard-aggregates-17135-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "dashboard_aggregates", filter: "event_id=eq.17135" }, () => { void refresh(); })
-      .subscribe((status) => { if (status === "SUBSCRIBED") void refresh(); });
+    const onReconnect = () => { void refresh(); };
+    window.addEventListener("online", onReconnect);
     const timer = window.setInterval(() => { void refresh(); }, 15_000);
     return () => {
       active = false;
       window.clearInterval(timer);
-      void client.removeChannel(channel);
+      window.removeEventListener("online", onReconnect);
     };
-  }, [mode, liveClient]);
+  }, [mode, load]);
 
   return metrics;
 }

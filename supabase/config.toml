@@ -39,5 +39,8 @@ verify_jwt = false
 [functions.dashboard-data]
 verify_jwt = true
 
+[functions.public-dashboard-data]
+verify_jwt = false
+
 [functions.controller-submit]
 verify_jwt = true

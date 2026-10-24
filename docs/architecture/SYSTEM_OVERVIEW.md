@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-The repository covers the New Horizons 2026 live dashboard, staff controller, and separate Jordan startup map. The source architecture uses React/Vite/TypeScript, Supabase Edge Functions, PostgreSQL, Auth, and Realtime. Frontend hosting remains undecided. The CLI is linked to controlled integration-test project `kkiambvltxuieuncwtfz`; its first four migrations, protected controller, snapshot-aware `dashboard-data` function, and aggregate-only map seed are deployed. The manual check-in migration and modified controller function remain local only. Hosted Auth, controller, RLS, and Realtime tests passed with verified synthetic-data cleanup. The owner confirmed the separate read-only b2match dry-run totals against the admin portal and authorized one static 202-registered/0-checked-in snapshot on 2026-10-16. The repaired `sync-b2match` source was deployed as v20 in an owner-approved code-only release on 2026-10-21, with its gate disabled and no invocation. No automatic b2match sync, named automation key, Cron job, or frontend deployment has been configured.
+The repository covers the New Horizons 2026 live dashboard, staff controller, and separate Jordan startup map. The source architecture uses React/Vite/TypeScript, Supabase Edge Functions, PostgreSQL, Auth, and Realtime. Cloudflare Pages is the expected frontend host (`https://horizonsevent.pages.dev`); no deployment of this change has been verified. The CLI is linked to controlled integration-test project `kkiambvltxuieuncwtfz`; its first four migrations, protected controller, snapshot-aware `dashboard-data` function, and aggregate-only map seed are deployed. The manual check-in migration and modified controller function remain local only. Hosted Auth, controller, RLS, and Realtime tests passed with verified synthetic-data cleanup. The owner confirmed the separate read-only b2match dry-run totals against the admin portal and authorized one static 202-registered/0-checked-in snapshot on 2026-10-16. The repaired `sync-b2match` source was deployed as v20 in an owner-approved code-only release on 2026-10-21, with its gate disabled and no invocation. No automatic b2match sync, named automation key, Cron job, or frontend deployment has been configured.
 
 ## Data flow
 
@@ -21,11 +21,11 @@ Owner-confirmed one-time publication -> guarded SQL transaction
   -> one aggregate snapshot (202 registered / 0 checked in)
   -> snapshot-aware dashboard-data response; no sync run or schedule
 
-Authenticated viewer -> dashboard-data Edge Function -> RLS-scoped safe aggregates
+Public dashboard browser -> public-dashboard-data Edge Function -> fixed event 17135 aggregate projection
+                         -> 15-second read and browser-online refetch; no anonymous table grant
+Authenticated controller -> dashboard-data Edge Function -> RLS-scoped safe aggregates
 Authenticated staff -> controller-submit Edge Function -> transactional meeting/feedback RPC
 Authenticated staff -> recent action history / reasoned reversal -> aggregate + immutable audit row
-Dashboard browser -> Realtime notification -> dashboard-data refetch
-                  -> 15-second bounded read fallback
 
 Public map browser -> Supabase Data API -> RLS-protected aggregate map snapshot
                    -> local governorate selection; no staff mutation or Realtime
@@ -49,11 +49,11 @@ The deployed staff correction path targets a prior request ID, reverses the whol
 
 ## Mode and authorization boundaries
 
-`VITE_DATA_MODE=demo` uses local synthetic MEET/MATCH/GROW values and an in-memory controller. `VITE_DATA_MODE=live` requires a Supabase URL/publishable key, Supabase Auth session, and event membership. The dashboard accepts viewer, staff, and admin memberships; the controller accepts staff and admin. Edge Functions enforce these roles and the database grants/RLS reject direct browser writes. No service or b2match secret is sent to the frontend.
+`VITE_DATA_MODE=demo` uses local synthetic MEET/MATCH/GROW values and an in-memory controller. `VITE_DATA_MODE=live` requires a Supabase URL/publishable key. The public dashboard does not require a user session or membership; its Edge Function uses server-only privilege to read fixed aggregate columns and returns the existing validated display payload. The controller retains Supabase Auth, event membership, authenticated `dashboard-data` reads, and staff/admin-only `controller-submit` mutations. Database grants/RLS still reject direct anonymous dashboard-table reads and all browser writes. No service or b2match secret is sent to the frontend.
 
-The MEET/MATCH/GROW dashboard display is private by default in live mode. A static frontend may still deliver its HTML and brand assets before sign-in; its event data requests and Realtime rows require an authorized session. The separate `/map` route reads one public aggregate row with a publishable key. The local dashboard demo intentionally remains accessible.
+The MEET/MATCH/GROW display at `/` is public in live mode and reads only the published display aggregate. The separate `/map` route still reads one public map aggregate row with a publishable key. The local dashboard demo remains labeled synthetic. The authenticated `dashboard-data` endpoint is retained for controller use.
 
-The Dashboard opens one authorized Realtime channel per mounted hook instance and refetches `dashboard-data` after aggregate notifications. Each mount uses a distinct channel topic so React Strict Mode's first cleanup cannot close the replacement subscription. A notification received during an in-flight read queues another refetch. The 15-second authoritative read remains the fallback when a notification is missed.
+The public Dashboard has no Realtime subscription: `dashboard_aggregates` RLS is event-member-only. It reads `public-dashboard-data` on mount, every 15 seconds, and when the browser reports reconnection. An overlapping trigger queues one follow-up read; unmount removes the timer and online listener. Controller reads and mutations remain authenticated. Earlier authorized Realtime rehearsals below describe the previous dashboard implementation.
 
 ## Pending release decisions
 
@@ -62,7 +62,7 @@ The Dashboard opens one authorized Realtime channel per mounted hook instance an
 - Before enabling automatic sync, deploy and rehearse the pending manual-control migration: raw `meet_snapshots` and effective `dashboard_aggregates` remain separate, and the active manual mode prevents automatic count replacement. The current environment-based response status still needs review for durable source labeling after a future live sync.
 - The client confirmed 1,200 meetings on 2026-10-15. The hosted event 17135 `meeting_target` is 1,200; `completed_meetings` remains the independent, staff-recorded aggregate. Any later target change needs a separate owner-approved setting update.
 - Test actual session expiry and a local database rehearsal. Hosted disposable-account tests covered sign-in, role denial, sequential and simultaneous controller idempotency, distinct staff/admin writes, Realtime delivery/reconnection, and read fallback; rollback-only SQL covered sync lease overlap and atomic publication.
-- Approve frontend hosting, operator identities, retention, monitoring, and release.
+- Confirm Cloudflare Pages build settings and GitHub integration, operator identities, retention, monitoring, and the separate production release approval.
 
 ## Jordan startup map (test-project aggregate published)
 
@@ -72,6 +72,6 @@ The Dashboard opens one authorized Realtime channel per mounted hook instance an
 
 ## Local emergency check-in refinement — pending deployment
 
-`/controller` now reveals a compact check-in card on demand. `controller-submit` authenticates and authorizes `checkin` and `reconcile_checkins`; SQL RPCs serialize them with `meet_checkin_control` row locks and retain each original request and reversal. The first manual `+1` anchors a manual session to the current effective aggregate. Later API pulls continue writing raw `meet_snapshots` and registered totals, but preserve the displayed manual checked-in count. The staff control exposes the latest API count and an explicit source-switch confirmation only after a newer API snapshot. A lower registration count that cannot contain the manual effective count rejects publication, preserving the prior aggregate. `dashboard-data`, Realtime, and the 15-second read fallback remain the display path. No participant identifiers are stored by this feature.
+`/controller` now reveals a compact check-in card on demand. `controller-submit` authenticates and authorizes `checkin` and `reconcile_checkins`; SQL RPCs serialize them with `meet_checkin_control` row locks and retain each original request and reversal. The first manual `+1` anchors a manual session to the current effective aggregate. Later API pulls continue writing raw `meet_snapshots` and registered totals, but preserve the displayed manual checked-in count. The staff control exposes the latest API count and an explicit source-switch confirmation only after a newer API snapshot. A lower registration count that cannot contain the manual effective count rejects publication, preserving the prior aggregate. In current source, public `public-dashboard-data` polling is the display path; the authenticated controller still reads `dashboard-data`. Historical Realtime behavior above predates the public-read change. No participant identifiers are stored by this feature.
 
 The currently deployed test project has none of this migration or function code. Its automatic b2match gate remains off; the old static 202/0 snapshot is unchanged by local edits. The `/map` route keeps its single aggregate read and now derives six heat-map classes locally from that validated snapshot. Both display routes opt into the individual supplied partner assets and complete-dot artwork; only `/map` receives choropleth styling.

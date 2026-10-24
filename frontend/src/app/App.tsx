@@ -22,10 +22,9 @@ export default function App({ pathname = window.location.pathname }: AppProps) {
         : "Page not found — New Horizons 2026";
   }, [route]);
 
-  if (route === "/") return dataMode === "live"
-    ? <LiveAccess staffOnly={false}><Dashboard /></LiveAccess> : <Dashboard />;
+  if (route === "/") return <Dashboard />;
   if (route === "/controller") return dataMode === "live"
-    ? <LiveAccess staffOnly><StaffController /></LiveAccess> : <StaffController />;
+    ? <LiveAccess><StaffController /></LiveAccess> : <StaffController />;
   if (route === "/map") return <MapDashboard />;
 
   return (

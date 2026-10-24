@@ -1,4 +1,5 @@
 import type { MetricResource, MeetMetrics } from "../../types/dashboard";
+import AnimatedCounter from "./AnimatedCounter";
 import PillarCard from "./PillarCard";
 import SemiCircularGauge from "./SemiCircularGauge";
 
@@ -21,7 +22,7 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
         <SemiCircularGauge
           value={checkedIn}
           maxValue={registered}
-          displayValue={loading ? "" : ready ? String(ready.checkedIn) : "—"}
+          displayValue={loading ? "" : ready ? <AnimatedCounter value={ready.checkedIn} /> : "—"}
           label={loading ? "Loading" : ready ? "Checked In" : "Unavailable"}
           loading={loading}
           ariaLabel={ready
@@ -33,10 +34,10 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
       )}
       metrics={[{
         icon: "peopleSolid",
-        value: ready ? ready.registered.toLocaleString() : "—",
+        value: ready ? <AnimatedCounter value={ready.registered} /> : "—",
         label: "Registered",
       }, {
-        value: ready ? `${ready.checkInRate}%` : "—",
+        value: ready ? <AnimatedCounter value={ready.checkInRate} suffix="%" /> : "—",
         label: "Check-in rate",
       }]}
     />

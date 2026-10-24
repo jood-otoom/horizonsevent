@@ -1,10 +1,10 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { calculateProgressPercent } from "../../lib/progress";
 
 export interface SemiCircularGaugeProps {
   value: number;
   maxValue: number;
-  displayValue: string;
+  displayValue: ReactNode;
   label: string;
   color?: string;
   size?: number;
@@ -37,7 +37,7 @@ export function SemiCircularGauge({
   const indicatorY = centerY - radius * Math.sin(progressAngle);
   const path = `M ${startX} ${centerY} A ${radius} ${radius} 0 0 1 ${endX} ${centerY}`;
   const accessibleLabel =
-    ariaLabel ?? `${displayValue}, ${label}, ${Math.round(progress)} percent of target`;
+    ariaLabel ?? `${typeof displayValue === "string" || typeof displayValue === "number" ? displayValue : "Value"}, ${label}, ${Math.round(progress)} percent of target`;
 
   return (
     <div className={`gauge-frame${loading ? " gauge-loading" : ""}`}

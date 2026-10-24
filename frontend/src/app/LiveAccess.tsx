@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 
 type AccessState = "loading" | "signed-out" | "authorized" | "forbidden" | "unavailable";
 
-export default function LiveAccess({ staffOnly, children }: { staffOnly: boolean; children: ReactNode }) {
+export default function LiveAccess({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AccessState>("loading");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,12 +23,12 @@ export default function LiveAccess({ staffOnly, children }: { staffOnly: boolean
         .eq("event_id", 17135).eq("user_id", user.id).maybeSingle();
       if (!active) return;
       if (error) { setState("unavailable"); return; }
-      setState(data && (!staffOnly || data.role === "staff" || data.role === "admin") ? "authorized" : "forbidden");
+      setState(data && (data.role === "staff" || data.role === "admin") ? "authorized" : "forbidden");
     };
     void check();
     const { data: listener } = client.auth.onAuthStateChange(() => { window.setTimeout(() => { void check(); }, 0); });
     return () => { active = false; listener.subscription.unsubscribe(); };
-  }, [staffOnly]);
+  }, []);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,7 +52,7 @@ export default function LiveAccess({ staffOnly, children }: { staffOnly: boolean
           <button type="button" onClick={() => { void supabase?.auth.signOut(); }}>Sign out</button>
         </>}
         {state === "signed-out" && <form onSubmit={(event) => { void signIn(event); }}>
-          <p>Sign in to view {staffOnly ? "the staff controller" : "the event dashboard"}.</p>
+          <p>Sign in to view the staff controller.</p>
           <label>Email<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
           <button type="submit">Sign in</button>
