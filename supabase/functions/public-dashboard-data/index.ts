@@ -2,6 +2,8 @@ import { withSupabase } from "@supabase/server";
 import { withApprovedOrigin } from "../_shared/cors.ts";
 import { publicDashboardResponse, type PublicDashboardClient } from "../_shared/publicDashboard.ts";
 
+const PUBLIC_DASHBOARD_ORIGIN = "https://horizonsevent.pages.dev";
+
 const publicRead = withSupabase({ auth: "none", cors: "disabled" }, (request, ctx) =>
   publicDashboardResponse(
     request,
@@ -11,6 +13,7 @@ const publicRead = withSupabase({ auth: "none", cors: "disabled" }, (request, ct
 
 export default {
   fetch(request: Request) {
-    return withApprovedOrigin(request, Deno.env.get("DASHBOARD_ALLOWED_ORIGINS"), "GET, OPTIONS", () => publicRead(request));
+    const allowedOrigins = `${Deno.env.get("DASHBOARD_ALLOWED_ORIGINS") ?? ""},${PUBLIC_DASHBOARD_ORIGIN}`;
+    return withApprovedOrigin(request, allowedOrigins, "GET, OPTIONS", () => publicRead(request));
   },
 };
