@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "workbook": "Map Master - E4DE v2.xlsx",
+    "sheet": "Map master",
+    "sha256": "2fb7da63d61d8c2652f22968febec6c1da1bf354414eb2d8c54c26338e51cc68",
+    "sourceRecordCount": 389,
+    "includedCount": 265,
+    "excludedNAStageCount": 124,
+    "excludedIconNAStageCount": 15,
+    "excludedMissingStageCount": 0,
+    "deduplicatedRowCount": 0,
+    "qualityWarnings": {
+      "flaggedRecordCount": 65,
+      "byReason": {
+        "totalFemaleExceedsTotalEmployment": 48,
+        "totalYouthExceedsTotalEmployment": 39,
+        "totalRefugeeExceedsTotalEmployment": 3,
+        "economicSectorMissingReviewFlag": 4,
+        "employeesCountMissing": 2,
+        "endlineSurveyNotYet": 2
+      },
+      "sectorMissingFlagWithCategoryCount": 4,
+      "missingSectorValueCount": 0
+    }
+  },
+  "nationwide": {
+    "total": 265,
+    "gender": {
+      "female": 142,
+      "male": 123,
+      "unknown": 0
+    },
+    "employment": {
+      "startupsWithEmployees": 142,
+      "totalEmployees": 762,
+      "unknownCount": 2
+    },
+    "stages": {
+      "Acceleration": 150,
+      "Go to Market": 91,
+      "Grow+": 24
+    },
+    "sectors": {
+      "technologyDigital": 14,
+      "greenCleanTech": 31,
+      "industryManufacturing": 91,
+      "healthSocialImpact": 13,
+      "educationCreative": 49,
+      "commerceServices": 45,
+      "hospitalityTourism": 21,
+      "other": 1
+    },
+    "representedGovernorates": 8
+  },
+  "governorates": {
+    "aqaba": {
+      "name": "Aqaba",
+      "total": 84,
+      "gender": {
+        "female": 44,
+        "male": 40,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 36,
+        "totalEmployees": 173,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 44,
+        "Go to Market": 36,
+        "Grow+": 4
+      },
+      "sectors": {
+        "technologyDigital": 4,
+        "greenCleanTech": 3,
+        "industryManufacturing": 25,
+        "healthSocialImpact": 2,
+        "educationCreative": 23,
+        "commerceServices": 20,
+        "hospitalityTourism": 7,
+        "other": 0
+      }
+    },
+    "karak": {
+      "name": "Karak",
+      "total": 46,
+      "gender": {
+        "female": 20,
+        "male": 26,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 38,
+        "totalEmployees": 172,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 45,
+        "Go to Market": 0,
+        "Grow+": 1
+      },
+      "sectors": {
+        "technologyDigital": 3,
+        "greenCleanTech": 5,
+        "industryManufacturing": 14,
+        "healthSocialImpact": 4,
+        "educationCreative": 11,
+        "commerceServices": 8,
+        "hospitalityTourism": 1,
+        "other": 0
+      }
+    },
+    "mafraq": {
+      "name": "Mafraq",
+      "total": 44,
+      "gender": {
+        "female": 33,
+        "male": 11,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 17,
+        "totalEmployees": 93,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 21,
+        "Go to Market": 22,
+        "Grow+": 1
+      },
+      "sectors": {
+        "technologyDigital": 2,
+        "greenCleanTech": 12,
+        "industryManufacturing": 17,
+        "healthSocialImpact": 3,
+        "educationCreative": 2,
+        "commerceServices": 7,
+        "hospitalityTourism": 1,
+        "other": 0
+      }
+    },
+    "jarash": {
+      "name": "Jarash",
+      "total": 38,
+      "gender": {
+        "female": 28,
+        "male": 10,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 12,
+        "totalEmployees": 53,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 13,
+        "Go to Market": 23,
+        "Grow+": 2
+      },
+      "sectors": {
+        "technologyDigital": 0,
+        "greenCleanTech": 5,
+        "industryManufacturing": 14,
+        "healthSocialImpact": 3,
+        "educationCreative": 9,
+        "commerceServices": 3,
+        "hospitalityTourism": 3,
+        "other": 1
+      }
+    },
+    "amman": {
+      "name": "Amman",
+      "total": 22,
+      "gender": {
+        "female": 2,
+        "male": 20,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 17,
+        "totalEmployees": 144,
+        "unknownCount": 2
+      },
+      "stages": {
+        "Acceleration": 0,
+        "Go to Market": 7,
+        "Grow+": 15
+      },
+      "sectors": {
+        "technologyDigital": 4,
+        "greenCleanTech": 4,
+        "industryManufacturing": 4,
+        "healthSocialImpact": 1,
+        "educationCreative": 3,
+        "commerceServices": 6,
+        "hospitalityTourism": 0,
+        "other": 0
+      }
+    },
+    "ajlun": {
+      "name": "Ajloun",
+      "total": 14,
+      "gender": {
+        "female": 9,
+        "male": 5,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 9,
+        "totalEmployees": 35,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 14,
+        "Go to Market": 0,
+        "Grow+": 0
+      },
+      "sectors": {
+        "technologyDigital": 0,
+        "greenCleanTech": 1,
+        "industryManufacturing": 5,
+        "healthSocialImpact": 0,
+        "educationCreative": 0,
+        "commerceServices": 0,
+        "hospitalityTourism": 8,
+        "other": 0
+      }
+    },
+    "irbid": {
+      "name": "Irbid",
+      "total": 14,
+      "gender": {
+        "female": 6,
+        "male": 8,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 10,
+        "totalEmployees": 58,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 13,
+        "Go to Market": 0,
+        "Grow+": 1
+      },
+      "sectors": {
+        "technologyDigital": 1,
+        "greenCleanTech": 1,
+        "industryManufacturing": 11,
+        "healthSocialImpact": 0,
+        "educationCreative": 0,
+        "commerceServices": 1,
+        "hospitalityTourism": 0,
+        "other": 0
+      }
+    },
+    "maan": {
+      "name": "Ma'an",
+      "total": 3,
+      "gender": {
+        "female": 0,
+        "male": 3,
+        "unknown": 0
+      },
+      "employment": {
+        "startupsWithEmployees": 3,
+        "totalEmployees": 34,
+        "unknownCount": 0
+      },
+      "stages": {
+        "Acceleration": 0,
+        "Go to Market": 3,
+        "Grow+": 0
+      },
+      "sectors": {
+        "technologyDigital": 0,
+        "greenCleanTech": 0,
+        "industryManufacturing": 1,
+        "healthSocialImpact": 0,
+        "educationCreative": 1,
+        "commerceServices": 0,
+        "hospitalityTourism": 1,
+        "other": 0
+      }
+    }
+  }
+}

@@ -19,13 +19,20 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the Vite URL printed in the terminal. `VITE_DATA_MODE=demo` is the default. The demo dashboard and controller make no external requests; controller records last for the current page session only. `/map` always reads the published Supabase aggregate from the configured project and never substitutes demo startup counts. A missing or invalid row produces a controlled error state. With the linked test project's URL and publishable key, `/map` currently shows the approved workbook-derived 266-startup snapshot.
+Open the Vite URL printed in the terminal. `VITE_DATA_MODE=demo` is the default. The demo dashboard and controller make no external requests; controller records last for the current page session only. The local `/map` redesign uses the checked-in, aggregate-only `Map master` snapshot; selecting a governorate uses that same in-memory dataset. The production map still shows its previously published 266-startup aggregate until a separately approved frontend release.
 
 ## Jordan startup map
 
-The supplied `Participants List.xlsx` contains private contact information and is ignored by Git. To regenerate the aggregate-only seed after a reviewed workbook update, run `python3 scripts/prepare_map_snapshot.py 'Participants List.xlsx'`, then `python3 -m unittest discover -s scripts -p 'test_prepare_map_snapshot.py' -v`. The script refuses unknown stages, missing boundaries, or totals that differ from the reviewed workbook. Review any future SQL and use the [deployment procedure](docs/deployment/DEPLOYMENT.md) before changing the existing published row; the initial insert must not be rerun against that row. No startup profile or contact column was sent to Supabase.
+The redesign's data source is the private `Map master` worksheet in the supplied `Map Master - E4DE v2.xlsx`. The prompt's `v2(1).xlsx` file was not present among the supplied paths; the attached `v2.xlsx` hashes to `2fb7da63d61d8c2652f22968febec6c1da1bf354414eb2d8c54c26338e51cc68`. The source workbook is ignored by Git. To regenerate the aggregate-only frontend JSON after a reviewed workbook update, run:
 
-The development preview is optimized for 1792×1024. The map uses the existing 12-governorate SVG geometry and colors only the eight represented regions from the validated aggregate; selection updates locally. The [UI and branding guide](docs/frontend/UI_AND_BRANDING.md) documents the color classification and links the latest 1792×1024 and 1366×768 local browser captures using the hosted test-project aggregate. Neither is a production deployment or physical LED acceptance.
+```sh
+python3 scripts/prepare_map_dashboard_data.py '/path/to/Map Master - E4DE v2.xlsx'
+MAP_WORKBOOK_PATH='/path/to/Map Master - E4DE v2.xlsx' python3 -m unittest discover -s scripts -p 'test_prepare_map_dashboard_data.py' -v
+```
+
+The current output has 265 stage-assigned startups across eight governorates; the 124 `NA` stage rows, including 15 ICON rows, are excluded. Two eligible Amman employee counts are marked missing in column X despite numeric zero in column O. The 142 startups employing people and 762 counted employees exclude those unknown values. Review the generated diff and the [workbook mapping and quality guide](docs/integrations/MAP_WORKBOOK.md) before release. The earlier `Participants List.xlsx` SQL seed and `scripts/prepare_map_snapshot.py` remain historical for the already published 266-startup row; do not rerun that insert.
+
+The development preview targets 1792×1024 and preserves the 12-governorate SVG geometry. Only the eight represented governorates receive counts and interactive pins. The [UI and branding guide](docs/frontend/UI_AND_BRANDING.md) documents the current layout and local visual checks. A local preview is not a production deployment or physical LED acceptance.
 
 ## LED presentation
 
@@ -54,10 +61,12 @@ See [deployment](docs/deployment/DEPLOYMENT.md) for later hosted-project setup, 
 ## Repository map
 
 - `frontend/` — preserved dashboard/controller UI, demo providers, live Supabase Auth and aggregate clients.
-- `frontend/src/pages/MapDashboard.tsx` — separate `/map` display using one published aggregate.
+- `frontend/src/pages/MapDashboard.tsx` — separate `/map` display using one static, aggregate-only workbook snapshot.
+- `frontend/src/data/mapSnapshot.json` — generated national and per-governorate counts with no source records.
+- `scripts/prepare_map_dashboard_data.py` — reviewable import from the private `Map master` worksheet.
 - `supabase/functions/` — public aggregate dashboard read, authenticated dashboard/controller functions, protected sync, and gated service-only dry-run functions; shared validated b2match logic.
 - `supabase/migrations/` — event-scoped PostgreSQL tables, RLS, transactional functions, aggregate-only Realtime publication, and the applied map snapshot table.
-- `supabase/seed/map_dashboard_snapshot.sql` — reviewed workbook-derived startup aggregates only; its one initial row is applied in the linked test project.
+- `supabase/seed/map_dashboard_snapshot.sql` — historical 266-startup aggregate seed already applied in the linked test project; the new map frontend does not update that row.
 - `supabase/verification/publish_portal_snapshot.sql` — guarded, one-time 202/0 publication; it creates no sync run or schedule and refuses a repeat.
 - `docs/` — architecture, schema, contracts, integration, security, testing, and deployment.
 

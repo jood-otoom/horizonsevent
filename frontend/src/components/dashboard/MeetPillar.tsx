@@ -12,6 +12,8 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
   const registered = ready?.registered ?? 0;
   const checkedIn = ready?.checkedIn ?? 0;
   const loading = resource.status === "loading";
+  const sourceLabel = ready?.status === "snapshot" ? " · Snapshot" :
+    ready?.status === "stale" ? " · Stale" : "";
 
   return (
     <PillarCard
@@ -23,10 +25,10 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
           value={checkedIn}
           maxValue={registered}
           displayValue={loading ? "" : ready ? <AnimatedCounter value={ready.checkedIn} /> : "—"}
-          label={loading ? "Loading" : ready ? "Checked In" : "Unavailable"}
+          label={loading ? "Loading" : ready ? `Checked In${sourceLabel}` : "Unavailable"}
           loading={loading}
           ariaLabel={ready
-            ? `${ready.checkedIn} checked in of ${ready.registered} registered`
+            ? `${ready.checkedIn} checked in of ${ready.registered} registered${sourceLabel}`
             : loading
               ? "Loading attendance data"
               : "Attendance data unavailable"}

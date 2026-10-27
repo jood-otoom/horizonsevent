@@ -11,8 +11,9 @@ interface MatchPillarProps {
 export default function MatchPillar({ metrics }: MatchPillarProps) {
   const completed = metrics.completedMeetings;
   const target = metrics.targetMeetings;
-  const progress = completed === null || target === null
+  const progress = completed === null ? "—" : target === null
     ? "Target pending" : formatPercent(completed, target, 2);
+  const statusLabel = metrics.status === "stale" ? " · Stale" : "";
 
   return (
     <PillarCard
@@ -24,7 +25,7 @@ export default function MatchPillar({ metrics }: MatchPillarProps) {
           value={completed ?? 0}
           maxValue={target ?? 0}
           displayValue={completed === null ? "—" : <AnimatedCounter value={completed} duration={1000} />}
-          label={target === null ? "Target pending" : `of ${target.toLocaleString()}`}
+          label={completed === null ? "Unavailable" : target === null ? "Target pending" : `of ${target.toLocaleString()}${statusLabel}`}
           ariaLabel={completed === null ? "Meeting data unavailable" :
             `${completed} completed ${completed === 1 ? "meeting" : "meetings"}${target === null ? ", target pending" : ` of ${target} target meetings`}`}
         />

@@ -3,10 +3,11 @@ import { createHeatmapScale } from "./mapHeatmap";
 
 describe("governorate heatmap", () => {
   it("uses the complete distribution, preserves ties, and orders shades by count", () => {
-    const scale = createHeatmapScale([84, 46, 44, 38, 23, 14, 14, 3]);
+    const scale = createHeatmapScale([84, 46, 44, 38, 22, 14, 14, 3]);
     expect(scale.colorFor(3)).toBe(scale.colorFor(14));
     expect(scale.colorFor(84)).not.toBe(scale.colorFor(3));
-    const brightness = [3, 14, 23, 38, 44, 46, 84].map(total => {
+    expect(scale.colorFor(84)).toBe("#7A0019");
+    const brightness = [3, 14, 22, 38, 44, 46, 84].map(total => {
       const color = scale.colorFor(total)!;
       const red = parseInt(color.slice(1, 3), 16);
       const green = parseInt(color.slice(3, 5), 16);
@@ -20,8 +21,10 @@ describe("governorate heatmap", () => {
     const empty = createHeatmapScale([]);
     expect(empty.colorFor(undefined)).toBeNull();
     expect(empty.colorFor(12)).toBeNull();
+    expect(empty.colorFor(0)).toBe("#FFFFFF");
+    expect(createHeatmapScale([0, 3, 84]).colorFor(3)).toBe(createHeatmapScale([3, 84]).colorFor(3));
     const equal = createHeatmapScale([12, 12, 12]);
     expect(equal.colorFor(12)).toMatch(/^#[0-9A-F]{6}$/);
-    expect(equal.colorFor(0)).toBeNull();
+    expect(equal.colorFor(0)).toBe("#FFFFFF");
   });
 });

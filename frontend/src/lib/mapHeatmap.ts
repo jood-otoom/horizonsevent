@@ -1,13 +1,14 @@
-const HEATMAP_COLORS = ["#FDE8ED", "#F7BAC8", "#F0859D", "#E54869", "#CF103A", "#980024"] as const;
+// Sequential tints of the approved cream, primary red, and burgundy palette.
+const HEATMAP_COLORS = ["#F5E6E4", "#E7C6CA", "#D49DA8", "#C66A80", "#AC0F2E", "#7A0019"] as const;
 
 export interface HeatmapScale {
   colorFor: (total: number | undefined) => string | null;
 }
 
-// Group distinct published totals by rank, so ties always share a shade.
-// The full nationwide distribution is supplied once; selection never changes the scale.
+// Group distinct workbook totals by rank, so ties always share a shade.
+// The national distribution is supplied once; selection never changes the scale.
 export function createHeatmapScale(totals: readonly number[]): HeatmapScale {
-  const distinct = [...new Set(totals.filter(total => Number.isSafeInteger(total) && total >= 0))]
+  const distinct = [...new Set(totals.filter(total => Number.isSafeInteger(total) && total > 0))]
     .sort((a, b) => a - b);
   const colors = new Map<number, string>();
 
@@ -19,5 +20,5 @@ export function createHeatmapScale(totals: readonly number[]): HeatmapScale {
     colors.set(total, color);
   });
 
-  return { colorFor: total => total === undefined ? null : colors.get(total) ?? null };
+  return { colorFor: total => total === 0 ? "#FFFFFF" : total === undefined ? null : colors.get(total) ?? null };
 }

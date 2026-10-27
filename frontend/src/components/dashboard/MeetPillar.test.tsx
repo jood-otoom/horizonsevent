@@ -15,6 +15,15 @@ describe("MeetPillar", () => {
     expect(markup).toContain("202");
     expect(markup).toContain("Connect with the right people");
     expect(markup).toContain("Checked In");
+    expect(markup).toContain("Checked In · Snapshot");
     expect(markup).not.toContain("canceled");
+  });
+
+  it("marks a retained attendance value as stale", () => {
+    const markup = renderToStaticMarkup(<MeetPillar resource={{
+      status: "ready", data: { dataMode: "live", status: "stale", registered: 202,
+        checkedIn: 0, checkInRate: 0, asOf: "2026-10-16T00:00:00Z" },
+    }} />);
+    expect(markup).toContain("Checked In · Stale");
   });
 });
