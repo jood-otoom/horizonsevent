@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/supabaseClient", () => ({
-  dataMode: "live", supabase: null, mapSupabase: null,
+  dataMode: "live", supabase: null,
   supabaseUrl: "https://example.supabase.co", supabasePublishableKey: "sb_publishable_test",
 }));
 

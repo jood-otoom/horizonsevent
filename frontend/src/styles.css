@@ -277,7 +277,7 @@ select { font: inherit; }
 .event-information {
   position: absolute;
   top: 31.1%;
-  left: calc(74.7% + 60px);
+  left: 74.7%;
   width: 22.3%;
   color: #111;
 }
@@ -287,7 +287,7 @@ select { font: inherit; }
   gap: 0.24em;
   margin: 0 0 1.05cqw;
   font-family: "Manrope Variable", Manrope, sans-serif;
-  font-size: clamp(2.2rem, 2.5cqw, 3.2rem);
+  font-size: clamp(2rem, 2.3cqw, 3.2rem);
   font-weight: 800;
   letter-spacing: -0.055em;
   line-height: 1.05;
@@ -352,6 +352,12 @@ select { font: inherit; }
   .metric-value { font-size: 2.1cqw; }
   .metric-label { font-size: 1.07cqw; }
   .event-information-title { font-size: 2.45cqw; }
+}
+
+@media (min-width: 1101px) and (max-height: 700px) {
+  .gauge-region { width: 18cqw; }
+  .metric-panel { top: calc(35.2% + 10.3cqw); }
+  .pillar-card + .pillar-card::before { height: calc(35.2% + 16.5cqw); }
 }
 
 @media (max-width: 1100px) {
@@ -710,7 +716,7 @@ select { font: inherit; }
   .controller-meeting-total { min-height: 7.5rem; margin: 1rem 0; }
 }
 
-/* The separate startup map follows the supplied two-card venue reference. */
+/* The startup map uses the workbook aggregate in a single venue viewport. */
 .map-shell {
   position: relative;
   isolation: isolate;
@@ -719,7 +725,7 @@ select { font: inherit; }
   height: 100svh;
   overflow: hidden;
   background: #fff;
-  color: #151820;
+  color: var(--brand-charcoal);
 }
 
 .map-shell .dashboard-header { top: 2.6%; left: 3%; width: 42%; }
@@ -739,94 +745,150 @@ select { font: inherit; }
 
 .map-cards {
   position: absolute;
-  top: 17.2%;
-  left: 5%;
+  top: 15.7%;
+  left: 3%;
   display: grid;
-  grid-template-columns: minmax(0, 1.43fr) minmax(0, 1fr);
-  align-items: start;
-  gap: clamp(16px, 1.25vw, 24px);
-  width: 84%;
-  height: 69.5%;
+  grid-template-columns: minmax(0, 44.5fr) minmax(0, 55.5fr);
+  gap: 18px;
+  width: 94%;
+  height: 72.3%;
 }
 
-.map-card {
-  min-width: 0;
-  min-height: 0;
-  border: 1px solid #e7dfe2;
-  border-radius: 18px;
-  background: rgb(255 255 255 / 96%);
-  box-shadow: 0 4px 18px rgb(143 51 76 / 3%);
-}
-
-.map-card-map { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.map-card-map { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .map-card-heading {
   display: flex;
-  flex: 0 0 58px;
+  flex: 0 0 30px;
   align-items: center;
-  gap: 14px;
-  border-bottom: 1px solid #e3dfe1;
-  padding: 0 30px;
+  gap: 9px;
   color: var(--brand-primary);
   font-family: "Manrope Variable", Manrope, sans-serif;
-  font-size: clamp(15px, 1vw, 19px);
+  font-size: clamp(14px, .92cqw, 17px);
   font-weight: 800;
-  letter-spacing: .07em;
+  letter-spacing: .08em;
 }
-
-.map-heading-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-primary); }
-.map-graphic { display: grid; flex: 1; min-height: 0; place-items: center; padding: 3px 14px 0; }
-.map-jordan-svg { display: block; width: 100%; height: 100%; max-height: 100%; }
-.map-outline path { fill: var(--brand-primary); stroke: var(--brand-primary); stroke-width: 4.4; stroke-linejoin: round; }
-.map-region { fill: #fff; stroke: #d9c8ce; stroke-width: 1.15; stroke-linejoin: round; }
-.map-region:not(.map-region-inactive) { cursor: pointer; stroke: #fff6f1; stroke-width: 1.7; transition: stroke .16s ease, stroke-width .16s ease, filter .16s ease; }
-.map-region:not(.map-region-inactive):hover { stroke: var(--brand-burgundy); stroke-width: 2.7; filter: brightness(1.04); }
-.map-region.is-selected { stroke: var(--brand-deep-blue); stroke-width: 2.6; }
+.map-heading-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand-primary); }
+.map-graphic { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; }
+.map-jordan-svg { display: block; width: auto; height: 100%; max-width: 100%; max-height: 100%; overflow: visible; }
+.map-region { stroke: var(--brand-primary); stroke-width: 1.15; stroke-linejoin: round; transition: opacity .2s ease, stroke-width .2s ease, filter .2s ease; }
+.map-region.is-neutral { fill: var(--brand-cream); }
+.map-region.is-selectable { cursor: pointer; }
+.map-region.is-selectable:hover { stroke-width: 2.5; filter: brightness(1.04); }
+.map-region.is-selected { stroke: var(--brand-burgundy); stroke-width: 3.2; filter: drop-shadow(0 0 3px rgb(122 0 25 / 38%)); }
+.map-region.is-dimmed { fill-opacity: .52; stroke-opacity: .82; }
 .map-region:focus { outline: none; }
-.map-region:focus-visible { outline: none; stroke: var(--brand-deep-blue); stroke-width: 3.6; filter: drop-shadow(0 0 3px rgb(8 45 91 / 35%)); }
-.map-selected-outline { fill: none; stroke: var(--brand-deep-blue); stroke-width: 3.2; stroke-linejoin: round; }
+.map-region:focus-visible { stroke: var(--brand-deep-blue); stroke-width: 3.5; }
+.map-pin { cursor: pointer; transition: opacity .2s ease, filter .2s ease; }
+.map-pin-glow { fill: rgb(172 15 46 / 18%); filter: blur(4px); }
+.map-pin-shape { fill: url(#map-pin-gradient); stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 1px 2px rgb(122 0 25 / 32%)); }
+.map-pin-core { fill: #fff; }
+.map-pin.is-selected .map-pin-glow { fill: rgb(172 15 46 / 32%); filter: blur(5px); }
+.map-pin.is-dimmed { opacity: .55; }
+.map-labels { pointer-events: none; }
+.map-labels text { fill: var(--brand-charcoal); font-family: "Inter Variable", Inter, sans-serif; font-size: 14px; font-weight: 600; paint-order: stroke fill; stroke: #fff; stroke-width: 2.8; stroke-linejoin: round; transition: opacity .2s ease; }
+.map-labels text.is-selected { fill: var(--brand-burgundy); font-weight: 800; }
+.map-labels text.is-dimmed { opacity: .63; }
 
-.map-card-statistics { min-height: 500px; padding: clamp(30px, 2.5vw, 45px) clamp(30px, 2.6vw, 47px) 42px; }
-.map-stat-eyebrow { color: var(--brand-primary); font-size: clamp(14px, .92vw, 17px); font-weight: 800; letter-spacing: .065em; }
-.map-selection-heading { display: flex; min-height: 78px; align-items: center; justify-content: space-between; gap: 12px; }
-.map-selection-heading h1 { margin: 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(29px, 2.1vw, 40px); font-weight: 800; letter-spacing: -.055em; line-height: 1.1; }
-.map-reset { flex: 0 0 auto; border: 0; border-bottom: 1px solid currentColor; background: none; padding: 4px 0; color: #a40020; cursor: pointer; font-size: 12px; font-weight: 700; }
-.map-reset:focus-visible { outline: 3px solid #082d5b; outline-offset: 4px; }
-.map-total { display: flex; align-items: baseline; gap: 14px; min-height: 126px; margin-top: 3px; white-space: nowrap; }
-.map-total strong { color: var(--brand-primary); font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(76px, 5.65vw, 104px); font-weight: 800; letter-spacing: -.075em; line-height: 1; }
-.map-total span { color: #242328; font-size: clamp(19px, 1.25vw, 24px); font-weight: 700; }
-.map-stat-divider { height: 1px; background: #e6dfe2; }
-.map-card-statistics h2 { margin: 38px 0 20px; color: #242328; font-size: clamp(15px, .97vw, 18px); font-weight: 800; letter-spacing: .065em; }
-.map-stage-list { display: grid; gap: 18px; margin: 0; }
-.map-stage-list div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: clamp(18px, 1.16vw, 22px); }
-.map-stage-list dt { color: #55545a; }
-.map-stage-list dd { margin: 0; color: var(--brand-primary); font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.25em; font-weight: 800; }
-.map-state-message { margin: 30px 0 0; color: #55545a; font-size: 17px; line-height: 1.5; }
+.map-statistics { display: grid; min-width: 0; min-height: 0; grid-template-rows: 1.05fr 1.17fr 1.12fr 1.48fr; gap: 12px; }
+.map-middle-row { display: grid; min-width: 0; min-height: 0; grid-template-columns: 1fr 1fr; gap: 12px; }
+.map-stat-card { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #eadbdd; border-radius: 15px; background: rgb(255 255 255 / 97%); box-shadow: 0 3px 14px rgb(122 0 25 / 4%); }
+.map-stat-card h2 { margin: 0; color: var(--brand-primary); font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(18px, 1.12cqw, 22px); font-weight: 800; line-height: 1.15; }
+.map-total-card { padding: clamp(16px, 1.35cqw, 25px) clamp(20px, 1.65cqw, 30px); background: linear-gradient(115deg, #fff 50%, #fff6f1 100%); }
+.map-total-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.map-total-card h2 { color: var(--brand-charcoal); }
+.map-selection { display: flex; align-items: center; gap: 12px; color: var(--brand-burgundy); font-size: clamp(14px, .9cqw, 17px); font-weight: 800; white-space: nowrap; }
+.map-selection button { border: 0; border-bottom: 1px solid currentColor; background: none; padding: 1px 0; color: var(--brand-primary); cursor: pointer; font: inherit; font-size: .82em; }
+.map-selection button:focus-visible { outline: 3px solid var(--brand-deep-blue); outline-offset: 4px; }
+.map-total-figure { display: flex; align-items: baseline; gap: 17px; margin-top: 6px; white-space: nowrap; }
+.map-total-figure strong { color: var(--brand-burgundy); font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(66px, 5.05cqw, 96px); font-weight: 800; letter-spacing: -.075em; line-height: 1; }
+.map-total-figure > span { color: var(--brand-charcoal); font-size: clamp(18px, 1.28cqw, 24px); font-weight: 700; }
+.map-count-transition { display: inline-block; animation: map-count-in .25s ease-out both; }
+@keyframes map-count-in { from { opacity: .55; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+
+.map-gender-card, .map-employment-card, .map-stages-card, .map-sectors-card { padding: clamp(12px, 1cqw, 19px); }
+.map-gender-card, .map-employment-card { display: flex; flex-direction: column; }
+.map-gender-bar { display: flex; flex: 1; min-height: 0; max-height: 76px; overflow: hidden; border-radius: 8px; margin-top: 12px; background: #f3e3e4; }
+.map-gender-segment { display: flex; min-width: 0; align-items: center; justify-content: space-evenly; gap: 5px; overflow: hidden; padding: 4px 9px; color: #fff; transition: width .3s ease; }
+.map-gender-female { background: var(--brand-primary); }
+.map-gender-male { --map-gender-male: #7a0019; background: var(--brand-burgundy); }
+.map-gender-segment svg { width: clamp(25px, 2.45cqw, 43px); height: clamp(25px, 2.45cqw, 43px); flex: 0 0 auto; stroke-width: 1; }
+.map-gender-segment strong { font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(23px, 1.9cqw, 34px); font-weight: 800; white-space: nowrap; }
+.map-gender-unknown { background: #e2d4d4; }
+.map-gender-labels { display: flex; justify-content: space-around; gap: 8px; padding-top: 7px; color: var(--brand-charcoal); font-size: clamp(11px, .82cqw, 15px); font-weight: 650; text-align: center; }
+.map-gender-labels span { width: 50%; }
+.map-data-note { margin: 4px 0 0; color: #6d4048; font-size: clamp(10px, .72cqw, 12px); line-height: 1.15; }
+.map-employment-metrics { display: grid; flex: 1; min-height: 0; grid-template-columns: 1fr 1fr; align-items: center; margin-top: 12px; border-radius: 8px; background: linear-gradient(100deg, #fff6f1, #f7e5e5); }
+.map-employment-metrics > div { display: grid; min-width: 0; grid-template-columns: 43px minmax(0, 1fr); align-items: center; column-gap: 8px; padding: 6px 10px; }
+.map-employment-metrics > div + div { border-left: 1px solid #e7b9c1; }
+.map-employment-metrics svg { width: clamp(30px, 2.25cqw, 42px); height: clamp(30px, 2.25cqw, 42px); grid-row: span 2; color: var(--brand-primary); }
+.map-employment-metrics strong { color: var(--brand-burgundy); font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(23px, 1.7cqw, 32px); font-weight: 800; line-height: 1; }
+.map-employment-metrics > div > span { color: var(--brand-charcoal); font-size: clamp(10px, .76cqw, 14px); line-height: 1.17; }
+
+.map-stages-card { display: flex; flex-direction: column; }
+.map-stage-journey { display: flex; flex: 1; min-height: 0; align-items: stretch; gap: 3px; margin-top: 11px; }
+.map-stage-step { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: clamp(10px, .95cqw, 18px); padding: 8px 16px 8px 24px; clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 22px 50%); }
+.map-stage-step:first-child { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%); padding-left: 12px; }
+.map-stage-step:last-child { clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 22px 50%); }
+.map-stage-step-1 { background: var(--brand-burgundy); color: #fff; }
+.map-stage-step-2 { background: var(--brand-primary); color: #fff; }
+.map-stage-step-3 { background: color-mix(in srgb, var(--brand-primary) 23%, var(--brand-cream)); color: var(--brand-burgundy); }
+.map-stage-step svg { width: clamp(31px, 2.55cqw, 47px); height: clamp(31px, 2.55cqw, 47px); flex: 0 0 auto; stroke-width: 2.4; }
+.map-stage-step > div { display: grid; gap: 1px; }
+.map-stage-step strong { font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(27px, 2.05cqw, 39px); font-weight: 800; line-height: 1; }
+.map-stage-step > div > span { font-size: clamp(12px, .9cqw, 17px); white-space: nowrap; }
+
+.map-sectors-card { display: flex; flex-direction: column; }
+.map-sector-grid { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 8px; }
+.map-sector { display: flex; min-width: 0; align-items: center; gap: 9px; border-radius: 9px; background: #fbefee; padding: 7px 10px; }
+.map-sector:nth-child(2n) { background: #f7e6e7; }
+.map-sector svg { width: clamp(28px, 2.15cqw, 40px); height: clamp(28px, 2.15cqw, 40px); flex: 0 0 auto; color: var(--brand-burgundy); stroke-width: 2.6; }
+.map-sector > div { display: grid; min-width: 0; align-content: center; gap: 2px; }
+.map-sector strong { color: var(--brand-burgundy); font-family: "Manrope Variable", Manrope, sans-serif; font-size: clamp(22px, 1.62cqw, 31px); font-weight: 800; line-height: 1; }
+.map-sector > div > span { color: var(--brand-charcoal); font-size: clamp(10px, .76cqw, 14px); line-height: 1.13; }
 .map-geometry-credit { position: absolute; right: 2%; bottom: 1.4%; margin: 0; color: #6b6b70; font-size: 11px; }
 
-@media (min-width: 1101px) and (max-width: 1450px) {
-  .map-card-statistics { min-height: 430px; padding: 27px 32px 32px; }
-  .map-selection-heading { min-height: 65px; }
-  .map-total { min-height: 102px; }
-  .map-card-statistics h2 { margin-top: 27px; }
-  .map-stage-list { gap: 11px; }
+@media (max-width: 1500px) and (min-width: 1101px) {
+  .map-cards { top: 16%; height: 71.5%; gap: 14px; }
+  .map-statistics, .map-middle-row { gap: 8px; }
+  .map-gender-card, .map-employment-card, .map-stages-card, .map-sectors-card { padding: 10px; }
+  .map-employment-metrics > div { grid-template-columns: 30px minmax(0, 1fr); column-gap: 4px; padding: 4px; }
+  .map-stage-step { gap: 5px; padding-right: 11px; }
+  .map-sector { gap: 5px; padding: 5px; }
 }
 
 @media (max-width: 1100px) {
   .map-shell { height: auto; min-height: 100svh; overflow: visible; padding: 24px; }
   .map-shell .dashboard-header, .map-shell .dashboard-footer, .map-cards, .map-geometry-credit { position: relative; top: auto; bottom: auto; right: auto; left: auto; }
   .map-shell .dashboard-header { width: min(100%, 620px); }
-  .map-cards { width: 100%; height: min(70vh, 680px); margin: 32px 0; }
+  .map-cards { width: 100%; height: auto; grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); margin: 24px 0; }
+  .map-card-map { min-height: 600px; }
+  .map-statistics { grid-template-rows: 140px 170px 150px 220px; }
   .map-shell .dashboard-footer { width: min(100%, 620px); }
   .map-geometry-credit { margin-top: 16px; text-align: right; }
 }
 
-@media (max-width: 700px) {
-  .map-shell { padding: 16px; }
-  .map-shell .dashboard-background { display: none; }
-  .map-cards { display: flex; height: auto; flex-direction: column; gap: 16px; }
-  .map-card-map { height: min(72vh, 540px); }
-  .map-card-statistics { min-height: 420px; }
-  .map-selection-heading { min-height: 58px; }
-  .map-total { min-height: 85px; }
+@media (max-width: 800px) {
+  .map-cards { grid-template-columns: 1fr; }
+  .map-card-map { min-height: 520px; max-height: 650px; }
+  .map-statistics { grid-template-rows: 140px auto 155px 240px; }
+  .map-middle-row { grid-template-columns: 1fr 1fr; min-height: 170px; }
 }
 
+@media (max-width: 580px) {
+  .map-shell { padding: 16px; }
+  .map-shell .dashboard-background { display: none; }
+  .map-card-map { min-height: 430px; }
+  .map-middle-row { grid-template-columns: 1fr; }
+  .map-gender-card, .map-employment-card { min-height: 160px; }
+  .map-statistics { grid-template-rows: 130px auto 150px auto; }
+  .map-sector-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 82px)); }
+  .map-stages-card { padding: 10px; }
+  .map-stage-step { gap: 3px; padding: 4px 9px 4px 18px; }
+  .map-stage-step svg { width: 24px; height: 24px; }
+  .map-stage-step strong { font-size: 21px; }
+  .map-stage-step > div > span { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-region, .map-pin, .map-labels text, .map-gender-segment { transition: none; }
+  .map-count-transition { animation: none; }
+}

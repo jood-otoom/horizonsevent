@@ -1,113 +1,75 @@
-import geometryText from "../../assets/map/jordan-governorates.geojson?raw";
-import { MAP_GOVERNORATE_NAMES, type MapGovernorateId, type MapSnapshot } from "../../types/map";
+import { mapRegions } from "../../lib/mapGeometry";
 import type { HeatmapScale } from "../../lib/mapHeatmap";
-
-interface Region {
-  id: string;
-  name: string;
-  path: string;
-  selectable: boolean;
-}
-
-interface Geometry {
-  type: "Polygon" | "MultiPolygon";
-  coordinates: number[][][] | number[][][][];
-}
-
-const ID_BY_ISO: Record<string, MapGovernorateId> = {
-  "JO-AQ": "aqaba", "JO-KA": "karak", "JO-MA": "mafraq", "JO-JA": "jarash",
-  "JO-AM": "amman", "JO-AJ": "ajlun", "JO-IR": "irbid", "JO-MN": "maan",
-};
-
-const geojson = JSON.parse(geometryText) as {
-  features: { properties: { shapeISO: string; shapeName: string }; geometry: Geometry }[];
-};
-
-function positions(value: unknown): number[][] {
-  if (!Array.isArray(value)) return [];
-  if (typeof value[0] === "number" && typeof value[1] === "number") return [value as number[]];
-  return value.flatMap(positions);
-}
-
-const coordinates = geojson.features.flatMap(feature => positions(feature.geometry.coordinates));
-const midLatitude = (Math.min(...coordinates.map(point => point[1])) + Math.max(...coordinates.map(point => point[1]))) / 2;
-const longitudeScale = Math.cos(midLatitude * Math.PI / 180);
-const west = Math.min(...coordinates.map(point => point[0] * longitudeScale));
-const east = Math.max(...coordinates.map(point => point[0] * longitudeScale));
-const south = Math.min(...coordinates.map(point => point[1]));
-const north = Math.max(...coordinates.map(point => point[1]));
-const scale = Math.min(500 / (east - west), 560 / (north - south));
-
-function project(point: number[]): string {
-  const x = 300 + (point[0] * longitudeScale - (west + east) / 2) * scale;
-  const y = 324 - (point[1] - (south + north) / 2) * scale;
-  return `${x.toFixed(2)} ${y.toFixed(2)}`;
-}
-
-function geometryPath(geometry: Geometry): string {
-  const polygons = geometry.type === "Polygon"
-    ? [geometry.coordinates as number[][][]]
-    : geometry.coordinates as number[][][][];
-  return polygons.flatMap(polygon => polygon.map(ring =>
-    `M ${ring.map(project).join(" L ")} Z`,
-  )).join(" ");
-}
-
-const regions: Region[] = geojson.features.map(feature => ({
-  id: ID_BY_ISO[feature.properties.shapeISO] ?? feature.properties.shapeISO,
-  name: ID_BY_ISO[feature.properties.shapeISO]
-    ? MAP_GOVERNORATE_NAMES[ID_BY_ISO[feature.properties.shapeISO]]
-    : feature.properties.shapeName,
-  path: geometryPath(feature.geometry),
-  selectable: feature.properties.shapeISO in ID_BY_ISO,
-}));
-
-if (regions.length !== 12 || regions.filter(region => region.selectable).length !== 8) {
-  throw new Error("Jordan governorate geometry is incomplete.");
-}
+import type { MapGovernorateId, MapSnapshot } from "../../types/map";
 
 interface Props {
   selected: MapGovernorateId | "all";
-  onSelect: (id: MapGovernorateId) => void;
-  snapshot: MapSnapshot | null;
+  onSelect: (id: MapGovernorateId | "all") => void;
+  snapshot: MapSnapshot;
   heatmap: HeatmapScale;
 }
 
+const labelOffsets: Record<string, readonly [number, number]> = {
+  irbid: [0, 24], ajlun: [-45, 18], jarash: [55, 24], mafraq: [0, 26],
+  amman: [0, 27], karak: [11, 27], aqaba: [14, 27], maan: [0, 25],
+  "JO-BA": [-4, 24], "JO-AZ": [14, 25], "JO-MD": [-9, 25], "JO-AT": [0, 24],
+};
+
 export default function JordanMap({ selected, onSelect, snapshot, heatmap }: Props) {
-  const selectedRegion = selected === "all" ? null : regions.find(region => region.id === selected);
-  return (
-    <svg className="map-jordan-svg" viewBox="35 30 530 590" role="group" aria-label="Jordan governorates map">
-      <g className="map-outline" aria-hidden="true">
-        {regions.map(region => <path key={region.id} d={region.path} />)}
-      </g>
-      <g className="map-regions">
-        {regions.map(region => {
-          const id = region.id as MapGovernorateId;
-          const total = region.selectable ? snapshot?.governorates[id]?.total : undefined;
-          const color = heatmap.colorFor(total);
-          return region.selectable && total !== undefined && color ? (
-            <path
-              key={region.id}
-              d={region.path}
-              className={`map-region ${selected === region.id ? "is-selected" : ""}`}
-              style={{ fill: color }}
-              role="button"
-              tabIndex={0}
-              aria-label={`Select ${region.name} governorate, ${total} startups`}
-              aria-pressed={selected === region.id}
-              onClick={() => onSelect(id)}
-              onKeyDown={event => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(id);
-                }
-              }}
-              data-testid={`region-${region.id}`}
-            ><title>{region.name} — {total} startups</title></path>
-          ) : <path key={region.id} d={region.path} className="map-region map-region-inactive" aria-hidden="true" />;
-        })}
-      </g>
-      {selectedRegion && <path className="map-selected-outline" d={selectedRegion.path} aria-hidden="true" pointerEvents="none" />}
-    </svg>
-  );
+  return <svg className="map-jordan-svg" viewBox="35 30 530 590" role="group" aria-label="Jordan governorates map"
+    onClick={() => onSelect("all")}>
+    <defs>
+      <linearGradient id="map-pin-gradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#AC0F2E" /><stop offset="1" stopColor="#7A0019" />
+      </linearGradient>
+    </defs>
+    <g className="map-regions">
+      {mapRegions.map(region => {
+        const id = region.id as MapGovernorateId;
+        const total = region.selectable ? snapshot.governorates[id]?.total : undefined;
+        const selectable = region.selectable && total !== undefined;
+        const isSelected = selected === region.id;
+        return <path key={region.id} d={region.path}
+          className={`map-region ${selectable ? "is-selectable" : "is-neutral"} ${isSelected ? "is-selected" : ""} ${selected !== "all" && !isSelected ? "is-dimmed" : ""}`}
+          style={{ fill: heatmap.colorFor(total) ?? undefined }}
+          role={selectable ? "button" : undefined}
+          tabIndex={selectable ? 0 : undefined}
+          aria-label={selectable ? `${region.name}, ${total} startups` : undefined}
+          aria-pressed={selectable ? isSelected : undefined}
+          onClick={event => {
+            if (!selectable) return;
+            event.stopPropagation();
+            onSelect(id);
+          }}
+          onKeyDown={event => {
+            if (!selectable || (event.key !== "Enter" && event.key !== " ")) return;
+            event.preventDefault();
+            onSelect(id);
+          }}
+          data-testid={`region-${region.id}`}><title>{`${region.name}${total === undefined ? "" : ` — ${total} startups`}`}</title></path>;
+      })}
+    </g>
+    <g className="map-pins" aria-hidden="true">
+      {mapRegions.filter(region => region.selectable).map(region => {
+        const id = region.id as MapGovernorateId;
+        const [x, y] = region.point;
+        return <g key={id} className={`map-pin ${selected === id ? "is-selected" : ""} ${selected !== "all" && selected !== id ? "is-dimmed" : ""}`}
+          transform={`translate(${x} ${y})`} onClick={event => { event.stopPropagation(); onSelect(id); }}
+          data-testid={`pin-${id}`}>
+          <circle className="map-pin-glow" cy="-8" r="14" />
+          <path className="map-pin-shape" d="M0 7C-3 2-8-3-8-9a8 8 0 0 1 16 0C8-3 3 2 0 7Z" />
+          <circle className="map-pin-core" cy="-9" r="2.6" />
+        </g>;
+      })}
+    </g>
+    <g className="map-labels" aria-hidden="true">
+      {mapRegions.map(region => {
+        const [dx, dy] = labelOffsets[region.id] ?? [0, 24];
+        const isSelected = selected === region.id;
+        return <text key={region.id} x={region.point[0] + dx} y={region.point[1] + dy}
+          className={`${isSelected ? "is-selected" : ""} ${selected !== "all" && !isSelected ? "is-dimmed" : ""}`}
+          textAnchor="middle">{region.name}</text>;
+      })}
+    </g>
+  </svg>;
 }
