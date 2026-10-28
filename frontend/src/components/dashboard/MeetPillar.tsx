@@ -12,8 +12,7 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
   const registered = ready?.registered ?? 0;
   const checkedIn = ready?.checkedIn ?? 0;
   const loading = resource.status === "loading";
-  const sourceLabel = ready?.status === "snapshot" ? " · Snapshot" :
-    ready?.status === "stale" ? " · Stale" : "";
+  const sourceLabel = ready?.status === "snapshot" ? " · Snapshot" : "";
 
   return (
     <PillarCard

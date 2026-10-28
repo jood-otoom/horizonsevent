@@ -19,11 +19,13 @@ describe("MeetPillar", () => {
     expect(markup).not.toContain("canceled");
   });
 
-  it("marks a retained attendance value as stale", () => {
+  it("preserves retained attendance without a public stale label", () => {
     const markup = renderToStaticMarkup(<MeetPillar resource={{
       status: "ready", data: { dataMode: "live", status: "stale", registered: 202,
         checkedIn: 0, checkInRate: 0, asOf: "2026-10-16T00:00:00Z" },
     }} />);
-    expect(markup).toContain("Checked In · Stale");
+    expect(markup).toContain('class="gauge-label">Checked In</span>');
+    expect(markup).toContain('aria-label="0 checked in of 202 registered"');
+    expect(markup).not.toContain("Stale");
   });
 });

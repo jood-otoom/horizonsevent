@@ -17,7 +17,6 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
     Number.isFinite(metrics.averageRating) && metrics.averageRating >= 1 &&
     metrics.averageRating <= metrics.maximumRating ? metrics.averageRating : null;
   const ratingAchieved = average === null ? null : calculateProgressPercent(average, metrics.maximumRating);
-  const statusLabel = metrics.status === "stale" ? " · Stale" : "";
 
   return (
     <PillarCard
@@ -29,9 +28,9 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
           value={average ?? 0}
           maxValue={metrics.maximumRating}
           displayValue={average === null ? "—" : <AnimatedCounter value={average} decimals={average === 0 ? 0 : 1} duration={700} />}
-          label={average === null ? "Unavailable" : `of ${metrics.maximumRating.toFixed(1)}${statusLabel}`}
+          label={average === null ? "Unavailable" : `of ${metrics.maximumRating.toFixed(1)}`}
           ariaLabel={average === null ? "Meeting feedback unavailable" :
-            `${feedbackCount} feedback submissions; displayed rating ${average.toFixed(average === 0 ? 0 : 1)} out of ${metrics.maximumRating.toFixed(1)}${statusLabel}`}
+            `${feedbackCount} feedback submissions; displayed rating ${average.toFixed(average === 0 ? 0 : 1)} out of ${metrics.maximumRating.toFixed(1)}`}
         />
       )}
       metrics={[

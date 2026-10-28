@@ -53,12 +53,14 @@ describe("GrowPillar", () => {
     expect(markup).not.toContain("Target Achieved");
   });
 
-  it("marks a retained rating as stale", () => {
+  it("preserves retained feedback without a public stale label", () => {
     const markup = renderToStaticMarkup(<GrowPillar metrics={{
       dataMode: "live", status: "stale", averageRating: 3,
       maximumRating: 5, feedbackCount: 1,
     }} />);
-    expect(markup).toContain('class="gauge-label">of 5.0 · Stale</span>');
+    expect(markup).toContain('class="gauge-label">of 5.0</span>');
+    expect(markup).toContain('aria-label="1 feedback submissions; displayed rating 3.0 out of 5.0"');
+    expect(markup).not.toContain("Stale");
     expect(markup).toContain('>60%</span>');
   });
 });

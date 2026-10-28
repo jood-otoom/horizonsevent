@@ -1,5 +1,11 @@
 # Deployment and local operations
 
+## October 29 public status wording
+
+The owner requested removal of “Stale” from the venue dashboard. MEET, MATCH and GROW omit that word from both visible gauge labels and accessible descriptions. Existing source/freshness metadata, status retention after failures, last valid values, Snapshot labeling, 15-second polling and authenticated Controller Settings diagnostics are unchanged. This is frontend presentation only: no database, API, authentication, reset or synchronization operation is part of the change.
+
+Targeted pillar and dashboard-hook tests passed17/17; workspace TypeScript, ESLint, production build and diff checks passed. The tested bundle is `/assets/index-jkbm9qtF.js`, SHA256 `23581a56483f9b7b4af5bcf8605303192af7a47316c6520c03fbe86bcf5a2b90`. Publish through the existing main-branch Pages workflow and read back the artifact before completion. Rollback is the preceding frontend at `c082375`/Pages`4f9847f8`; it does not change stored counters or the MATCH/GROW reset backend.
+
 ## October 29 reset scope correction — current contract
 
 The owner requested that the critical reset clear MATCH and GROW while preserving MEET. The forward migration `20261028211842_reset_match_grow.sql` replaces only `admin_event_operation`; applying it does not invoke reset or modify event rows. The existing function body MD5 matched hosted `81bdd6de4b2b150bf4ab9dd57cf2f7ef` before editing. MATCH meeting requests and GROW feedback requests are marked cleared, aggregate meetings/feedback count/rating sum become zero only on a later authorized confirmed reset, and all MEET data/state plus target remain intact (shared version increments only). Old records/audit are retained. Both SQL and the controller Edge boundary require explicit `scope:"match_grow"`, preventing an older cached MATCH/MEET confirmation from invoking the revised reset.

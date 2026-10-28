@@ -27,6 +27,8 @@ describe("MatchPillar", () => {
     expect(pending).not.toContain("Target pending");
     expect(pending).toContain('class="metric-value metric-value-emphasis">—</dd>');
     expect(zero).toContain('>0%</span>');
-    expect(stale).toContain("of 1,200 · Stale");
+    expect(stale).toContain('class="gauge-label">of 1,200</span>');
+    expect(stale).toContain("4 completed meetings of 1200 target meetings");
+    expect(stale).not.toContain("Stale");
   });
 });
