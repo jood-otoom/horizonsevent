@@ -25,7 +25,7 @@ export default function MapDashboard() {
     if (!(event.target instanceof Element) || event.target.closest(".map-region, .map-pin")) return;
     setSelectedGovernorate("all");
   }}>
-    <DashboardBackground completeDots />
+    <DashboardBackground variant="map" />
     <DashboardHeader />
     <section className="map-cards" aria-label="Jordan startup statistics">
       <div className="map-card-map">

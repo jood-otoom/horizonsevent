@@ -12,7 +12,7 @@ export default function Dashboard() {
 
   return (
     <main className="dashboard-shell">
-      <DashboardBackground completeDots />
+      <DashboardBackground variant="dashboard" />
       <DashboardHeader />
       <section className="dashboard-grid" aria-label="New Horizons event progress">
         <MeetPillar resource={metrics.meet} />

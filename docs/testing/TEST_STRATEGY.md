@@ -1,5 +1,11 @@
 # Test strategy
 
+## October 29 final public branding
+
+The shared header must contain German Cooperation and EU marks in its left group and the exact existing Ministry mark at the far right on both `/` and `/map`. The shared footer must contain only GIZ (including its embedded "Implemented by" label), ICON INSTITUT, and PEM CONSULT in that order. The dashboard background must render exactly four symmetric petals in one lower-right flower, with no upper-right graphics or dot grids. The map must retain its lower-right dots and curve and have no flower. Component tests cover these structural rules; existing map tests continue to cover counts, selection, reset, and keyboard behavior.
+
+Observed local checks: `pnpm lint` passed; `pnpm typecheck` passed for frontend and Supabase; `pnpm test` passed 136 frontend and 65 Supabase tests; `pnpm build` passed with the existing nonfatal >500 kB JavaScript chunk warning; `git diff --check` passed. The two saved [1792×1024 previews](../frontend/UI_AND_BRANDING.md) were captured after the six logo images loaded. Both documents measured 1792×1024 without overflow. At 1366×768 both documents matched the viewport; at 1024×768 each kept viewport width with expected vertical scrolling. A local connected dashboard read displayed stored values without mutation, and browser warning/error logs were empty. The map's Aqaba pin selected 84 startups and Show all restored 265; the controller route loaded without a branding change or staff submission. Physical LED acceptance and a live data-change rehearsal remain separate checks.
+
 ## October 29 public status-label presentation
 
 Cover MEET, MATCH, and GROW with synthetic internally stale data: retained counts, percentages, averages, and targets must remain accurate while visible labels and accessible names omit the word **Stale**. Keep the MEET **Snapshot** label for its existing snapshot state, missing-data/unavailable states, and the controller's private synchronization diagnostics. This is a public presentation change; it must not remove internal freshness status, stale-value retention after failure, Realtime/refetch behavior, or the 15-second fallback.

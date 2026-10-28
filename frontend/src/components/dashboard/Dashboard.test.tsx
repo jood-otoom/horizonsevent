@@ -15,9 +15,13 @@ describe("Dashboard", () => {
     expect(markup).not.toContain("GROW connected");
     expect(markup).toContain("German-Jordan Cooperation");
     expect(markup).toContain("Co-funded by the European Union");
-    expect(markup.indexOf('alt="GIZ"')).toBeLessThan(markup.indexOf('alt="Ministry of Digital Economy and Entrepreneurship"'));
-    expect(markup.indexOf('alt="Ministry of Digital Economy and Entrepreneurship"')).toBeLessThan(markup.indexOf('alt="ICON Institute"'));
-    expect(markup.indexOf('alt="ICON Institute"')).toBeLessThan(markup.indexOf('alt="PEM Consult"'));
+    const header = markup.slice(markup.indexOf("<header"), markup.indexOf("</header>"));
+    const footer = markup.slice(markup.indexOf("<footer"), markup.indexOf("</footer>"));
+    expect(header.indexOf('alt="Co-funded by the European Union"')).toBeLessThan(header.indexOf('alt="Ministry of Digital Economy and Entrepreneurship"'));
+    expect(header).toContain("dashboard-funding-logos");
+    expect(footer).not.toContain("Ministry of Digital Economy and Entrepreneurship");
+    expect(footer.indexOf('alt="GIZ"')).toBeLessThan(footer.indexOf('alt="ICON Institute"'));
+    expect(footer.indexOf('alt="ICON Institute"')).toBeLessThan(footer.indexOf('alt="PEM Consult"'));
     expect(markup).not.toContain("29 October 2026");
     expect(markup).not.toContain("People</span>");
     expect(markup).not.toContain("Building a brighter");

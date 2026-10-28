@@ -73,6 +73,13 @@ describe("Jordan startup map", () => {
     expectStatistics(container, expected.all);
     expect(container.querySelector(".dashboard-header")).not.toBeNull();
     expect(container.querySelector(".dashboard-footer")).not.toBeNull();
+    expect([...container.querySelectorAll<HTMLImageElement>(".dashboard-header img")].map(img => img.alt)).toEqual([
+      "German-Jordan Cooperation", "Co-funded by the European Union", "Ministry of Digital Economy and Entrepreneurship",
+    ]);
+    expect([...container.querySelectorAll<HTMLImageElement>(".dashboard-footer img")].map(img => img.alt)).toEqual([
+      "GIZ", "ICON Institute", "PEM Consult",
+    ]);
+    expect(container.querySelector(".dashboard-corner-flower")).toBeNull();
     expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
     expect(screen.queryByText("266")).toBeNull();
   });
