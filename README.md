@@ -1,12 +1,12 @@
 # New Horizons 2026 Live Event Dashboard
 
-The public dashboard is at https://horizonsevent.pages.dev/ and the authenticated staff controller is at https://horizonsevent.pages.dev/controller. Event 17135 uses Supabase project `kkiambvltxuieuncwtfz`. The October 28 readiness change adds admin Settings, server-side two-minute synchronization, one-way Manual Mode, check-in increments/exact totals, registration overrides, editable meeting targets and a guarded MATCH/MEET reset. The [deployment guide](docs/deployment/DEPLOYMENT.md) is the source of truth for release status and remaining verification. The final Pages artifact and all five Edge bundles were read back and verified; automatic synchronization remains stopped. Live B2Match API/portal acceptance remains pending.
+The public dashboard is at https://horizonsevent.pages.dev/ and the authenticated staff controller is at https://horizonsevent.pages.dev/controller. Event 17135 uses Supabase project `kkiambvltxuieuncwtfz`. The October 28 readiness change adds admin Settings, server-side two-minute synchronization, one-way Manual Mode, check-in increments/exact totals, registration overrides, editable meeting targets and a guarded MATCH/MEET reset. The [deployment guide](docs/deployment/DEPLOYMENT.md) is the source of truth for release status and remaining verification. The owner subsequently started B2Match and fetched new totals. The October 29 repair addresses disabled Stop/Reset controls and simplifies Settings navigation; see the deployment guide for its exact verification status. Synchronization was explicitly stopped during recovery without changing event counters. A current portal/API comparison remains an operator acceptance item.
 
 Synchronization is deliberately stopped for release and testing. Opening Settings does not start it or reset data. Reset requires the administrator to type `RESET EVENT`; the agent must never run it on the live event without separate approval. GROW is preserved. Read [event-day operations](docs/operations/EVENT_DAY_RUNBOOK.md) before operating the controller. Manual Mode is permanent for this operating session and has no return-to-API control.
 
 The public display reads the existing aggregate Edge endpoint, refetches on aggregate Realtime notifications and browser reconnection, and retains its 15-second polling fallback. Only aggregate counters/timestamps are publicly readable; private controls, audit, settings and every mutation require authorization. See the [security guide](docs/security/SECURITY.md).
 
-The existing local map asset edits are outside this task. The release artifact preserves the exact deployed map source rather than releasing those pending edits; see deployment provenance.
+The owner merged the map/icon and event-readiness changes into production at `947e944`. The October 29 controller repair preserves that map source and changes no map behavior; earlier artifact releases are recorded as historical deployment evidence.
 
 ## Requirements and local demo
 
@@ -17,7 +17,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the Vite URL printed in the terminal. `VITE_DATA_MODE=demo` is the default. The demo dashboard and controller make no external requests; controller records last for the current page session only. The local `/map` redesign uses the checked-in, aggregate-only `Map master` snapshot; selecting a governorate uses that same in-memory dataset. The October 28 release preserves the existing 265-startup production map; the pending icon refinement remains local.
+Open the Vite URL printed in the terminal. `VITE_DATA_MODE=demo` is the default. The demo dashboard and controller make no external requests; controller records last for the current page session only. The local `/map` redesign uses the checked-in, aggregate-only `Map master` snapshot; selecting a governorate uses that same in-memory dataset. The current production map includes the supplied standalone icons and the 265-startup snapshot.
 
 ## Jordan startup map
 

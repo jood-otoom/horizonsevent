@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockControllerService } from "../../services/mockControllerProvider";
 import StaffController from "./StaffController";
 
+const dashboardSection = () => fireEvent.click(screen.getByRole("button", { name: "Dashboard settings" }));
+const resetSection = () => fireEvent.click(screen.getByRole("button", { name: "Reset totals" }));
+
 afterEach(cleanup);
 
 async function openSettings(service = createMockControllerService({ delayMs: 0 })) {
@@ -19,6 +22,7 @@ describe("controller Settings", () => {
     const update = vi.spyOn(service, "updateSettings");
     await openSettings(service);
     expect(screen.getByRole("dialog").getAttribute("aria-labelledby")).toBe("settings-title");
+    resetSection();
     fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
     expect(screen.getByRole("button", { name: "Confirm reset" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET" } });
@@ -34,6 +38,7 @@ describe("controller Settings", () => {
     await service.submitMeeting({ requestId: "seed-meeting", quantity: 3 });
     await service.submitFeedback({ requestId: "seed-rating", rating: 5 });
     await openSettings(service);
+    resetSection();
     fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
     fireEvent.change(screen.getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm reset" }));
@@ -46,7 +51,9 @@ describe("controller Settings", () => {
     const service = createMockControllerService({ delayMs: 0 });
     await service.submitMeeting({ requestId: "seed-meeting", quantity: 2 });
     await openSettings(service);
+    dashboardSection();
     fireEvent.change(screen.getByLabelText("Registered participants override"), { target: { value: "150" } });
+    dashboardSection();
     fireEvent.change(screen.getByLabelText("MATCH target meetings"), { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
     await screen.findByText("Saved. The dashboard is updating.");
@@ -86,9 +93,11 @@ describe("controller Settings", () => {
       return response;
     });
     await openSettings(service);
+    dashboardSection();
     fireEvent.change(screen.getByLabelText("MATCH target meetings"), { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
     await screen.findByText("Response lost");
+    resetSection();
     expect(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Retry pending operation" }));
     await screen.findByText("Saved. The dashboard is updating.");
@@ -115,6 +124,7 @@ it("shows a stopped API failure and manual fallback without issuing an automatic
 
 it("allows a registration override in API mode without activating Manual Mode", async () => {
   const service = await openSettings(createMockControllerService({ delayMs: 0, initialMode: "api" }));
+  dashboardSection();
   fireEvent.change(screen.getByLabelText("Registered participants override"), { target: { value: "150" } });
   fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
   await screen.findByText("Saved. The dashboard is updating.");
@@ -123,6 +133,7 @@ it("allows a registration override in API mode without activating Manual Mode", 
 
 it("rejects a stale Settings form until the administrator refreshes and reviews it", async () => {
   const service = await openSettings();
+  dashboardSection();
   fireEvent.change(screen.getByLabelText("MATCH target meetings"), { target: { value: "1500" } });
   const initial = await service.getSettings();
   await service.updateSettings({ kind: "update_settings", requestId: "another-admin", expectedVersion: initial.version, registeredOverride: 130 });
@@ -131,6 +142,7 @@ it("rejects a stale Settings form until the administrator refreshes and reviews 
   expect((await service.getSettings()).meetingTarget).toBe(1200);
   fireEvent.click(screen.getByRole("button", { name: "Refresh Settings" }));
   await waitFor(() => expect((screen.getByLabelText("Registered participants override") as HTMLInputElement).value).toBe("130"));
+  dashboardSection();
   fireEvent.change(screen.getByLabelText("MATCH target meetings"), { target: { value: "1500" } });
   fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
   await screen.findByText("Saved. The dashboard is updating.");
@@ -147,6 +159,7 @@ it("keeps uncertain reset errors and safe retry inside the active confirmation d
     return result;
   });
   await openSettings(service);
+  resetSection();
   fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
@@ -167,6 +180,7 @@ it("clears successful pre-reset totals after resetting through Settings", async 
   fireEvent.click(screen.getByRole("button", { name: "Set exact total" }));
   await screen.findByText("Exact check-in total saved: 1500.");
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  resetSection();
   fireEvent.click(await screen.findByRole("button", { name: "Reset MATCH & MEET Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
@@ -186,6 +200,7 @@ it("preserves an uncertain check-in retry across a successful Settings save", as
   fireEvent.click(await screen.findByRole("button", { name: "+5 Check-ins" }));
   await screen.findByText("Check-in was not confirmed. Retry with the same submission ID.");
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  dashboardSection();
   fireEvent.change(await screen.findByLabelText("MATCH target meetings"), { target: { value: "1500" } });
   fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
   await screen.findByText("Saved. The dashboard is updating.");
@@ -195,4 +210,105 @@ it("preserves an uncertain check-in retry across a successful Settings save", as
   fireEvent.click(retry);
   await screen.findByText("Check-in saved. Total: 9.");
   expect(submit.mock.calls[0][0]).toEqual(submit.mock.calls[1][0]);
+});
+
+it("unlocks Stop and Reset after Start returns the exact deployed response shape", async () => {
+  const service = createMockControllerService({ delayMs: 0, initialMode: "api" });
+  const real = service.updateSettings;
+  const update = vi.spyOn(service, "updateSettings").mockImplementation(async request => {
+    const { settings, record } = await real(request);
+    return { settings, record };
+  });
+  await openSettings(service);
+  fireEvent.click(screen.getByRole("button", { name: "Start Sync" }));
+  await screen.findByText("Sync started. Fetching now, then every two minutes.");
+  expect(screen.getByRole("button", { name: "Stop Sync" }).hasAttribute("disabled")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Stop Sync" }));
+  await screen.findByText("Sync stopped. Last fetched totals are preserved.");
+  expect(screen.queryByRole("button", { name: "Retry pending operation" })).toBeNull();
+  resetSection();
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  expect(screen.getByRole("button", { name: "Confirm reset" }).hasAttribute("disabled")).toBe(true);
+  expect(update.mock.calls.map(([request]) => request.kind)).toEqual(["start_sync", "stop_sync"]);
+  expect(await service.getSettings()).toMatchObject({ registered: 120, checkedIn: 35, syncEnabled: false });
+});
+
+it.each(["start_sync", "stop_sync"] as const)("recovers a lost %s receipt from newer authoritative status without another mutation", async kind => {
+  const service = createMockControllerService({ delayMs: 0, initialMode: "api" });
+  if (kind === "stop_sync") await service.updateSettings({ kind: "start_sync", requestId: "seed-start", expectedVersion: 0 });
+  const real = service.updateSettings;
+  const update = vi.spyOn(service, "updateSettings").mockImplementation(async request => {
+    await real(request);
+    throw new Error("Response lost");
+  });
+  await openSettings(service);
+  fireEvent.click(screen.getByRole("button", { name: kind === "start_sync" ? "Start Sync" : "Stop Sync" }));
+  await screen.findByText("Response lost");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh Settings" }));
+  await screen.findByText(kind === "start_sync" ? "Sync is running. You can stop it at any time." : "Sync stopped. Last fetched totals are preserved.");
+  expect(screen.queryByRole("button", { name: "Retry pending operation" })).toBeNull();
+  expect(update).toHaveBeenCalledTimes(1);
+  if (kind === "start_sync") expect(screen.getByRole("button", { name: "Stop Sync" }).hasAttribute("disabled")).toBe(false);
+  resetSection();
+  expect(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }).hasAttribute("disabled")).toBe(false);
+});
+
+it("does not clear an unconfirmed request from an unchanged status", async () => {
+  const service = createMockControllerService({ delayMs: 0, initialMode: "api" });
+  const update = vi.spyOn(service, "updateSettings").mockRejectedValue(new Error("Network unavailable"));
+  await openSettings(service);
+  fireEvent.click(screen.getByRole("button", { name: "Start Sync" }));
+  await screen.findByText("Network unavailable");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh Settings" }));
+  await screen.findByRole("button", { name: "Retry pending operation" });
+  expect((await service.getSettings()).syncEnabled).toBe(false);
+  expect(update).toHaveBeenCalledTimes(1);
+});
+
+it("retries Stop once after a worker version change, preserving totals", async () => {
+  const service = createMockControllerService({ delayMs: 0, initialMode: "api" });
+  await service.updateSettings({ kind: "start_sync", requestId: "seed-start", expectedVersion: 0 });
+  await openSettings(service);
+  const current = await service.getSettings();
+  await service.updateSettings({ kind: "update_settings", requestId: "worker-version-change", expectedVersion: current.version, meetingTarget: 1500 });
+  const update = vi.spyOn(service, "updateSettings");
+  fireEvent.click(screen.getByRole("button", { name: "Stop Sync" }));
+  await screen.findByText("Sync stopped. Last fetched totals are preserved.");
+  expect(update).toHaveBeenCalledTimes(2);
+  expect(update.mock.calls.map(([request]) => request.kind)).toEqual(["stop_sync", "stop_sync"]);
+  expect(update.mock.calls[1][0].expectedVersion).toBeGreaterThan(update.mock.calls[0][0].expectedVersion);
+  expect(await service.getSettings()).toMatchObject({ registered: 120, checkedIn: 35, meetingTarget: 1500, syncEnabled: false });
+});
+
+it("Escape cancels only the reset confirmation and preserves its parent Settings dialog", async () => {
+  const service = await openSettings();
+  const update = vi.spyOn(service, "updateSettings");
+  resetSection();
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
+  fireEvent(confirmation, new Event("cancel", { bubbles: false, cancelable: true }));
+  expect(screen.queryByRole("dialog", { name: "Confirm event reset" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "Controller Settings" })).toBeTruthy();
+  expect(update).not.toHaveBeenCalled();
+});
+
+it("keeps an in-flight reset confirmation open on Escape and prevents duplicate submission", async () => {
+  const service = createMockControllerService({ delayMs: 0 });
+  const real = service.updateSettings;
+  let complete!: () => void;
+  const held = new Promise<void>(resolve => { complete = resolve; });
+  const update = vi.spyOn(service, "updateSettings").mockImplementation(async request => { await held; return real(request); });
+  await openSettings(service);
+  resetSection();
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
+  fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
+  const confirm = within(confirmation).getByRole("button", { name: "Confirm reset" });
+  fireEvent.click(confirm);
+  fireEvent.click(confirm);
+  fireEvent(confirmation, new Event("cancel", { bubbles: false, cancelable: true }));
+  expect(screen.getByRole("dialog", { name: "Confirm event reset" })).toBeTruthy();
+  expect(update).toHaveBeenCalledTimes(1);
+  complete();
+  await screen.findByText("Saved. The dashboard is updating.");
 });

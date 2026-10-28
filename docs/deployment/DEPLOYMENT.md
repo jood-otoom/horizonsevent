@@ -1,5 +1,13 @@
 # Deployment and local operations
 
+## October 29 sync/Reset control repair
+
+The owner started API synchronization and reported that Stop and Reset were disabled. Deployed `controller-submit` v25 correctly returns `{record,settings}` for administrative operations; the frontend incorrectly parsed a missing check-in field after persistence and retained an uncertain request, disabling conflicting controls. This repair changes only the frontend contract, bounded Settings requests, request recovery and Settings presentation. No database migration, authentication change, Edge deployment or API counting-rule change is needed.
+
+A guarded call to the existing `admin_event_operation(...,'stop_sync',...)` locked the event control row and asserted the complete aggregate row was unchanged in the transaction. Readback confirmed Stopped, enabled false, next fetch null and version 10; MEET 239/0, MATCH 10, GROW 2/rating sum 7 remain preserved. Later read-only inspection found four historical API runs, latest start `2026-10-28T20:58:37.038026Z`, with no additional runs across subsequent due intervals. The owner-triggered API calls succeeded; this repair did not start any fetch or activate Manual Mode. No live reset was executed.
+
+Pre-release production is Pages deployment `dda53bd3-d285-4687-b242-12341351a851`, source `947e944` (owner-merged PR #3). It is the rollback target for this frontend repair. The current source tree matches that merge before the repair. Preserve the additive database and stopped state when rolling back frontend code; never restore event counters as a code rollback. Release URL, artifact verification and authenticated browser smoke results will be recorded here after deployment.
+
 ## Map icon build repair — October 28
 
 Cloudflare's failed preview jobs `46810f3c` and `0bf77b26` built branch `codex/map-redesign-and-dashboard-polish` at `3a6413e`. That commit replaced the old icon sheet/portrait with 15 tracked standalone PNGs, while `MapIcon.tsx` retained the deleted imports. The source repair uses the replacement PNGs without changing image files, layout, map statistics, controller behavior, backend configuration, or event data. The ordinary workspace now passes typecheck, lint, all 184 tests, and the live production build. The separate Wrangler `pages_build_output_dir` warning did not cause the failed import and is unchanged; Pages continues using its configured build/output settings.

@@ -60,7 +60,6 @@ export type SettingsRequest = SettingsAction & { requestId: string; expectedVers
 
 export interface SettingsResponse {
   settings: ControllerSettings;
-  checkins: CheckinStatus;
   record: { id: string; createdAt: string };
 }
 

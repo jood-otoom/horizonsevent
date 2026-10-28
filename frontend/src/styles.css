@@ -926,31 +926,62 @@ select { font: inherit; }
 }
 .controller-exact-form small, .controller-settings-modal small { font-size: 0.8rem; line-height: 1.5; }
 .controller-settings-modal {
-  width: min(42rem, calc(100vw - 2rem)); max-height: calc(100svh - 2rem); margin: auto;
+  width: min(46rem, calc(100vw - 2rem)); max-height: calc(100svh - 2rem); margin: auto;
   overflow-y: auto; border: 1px solid var(--brand-divider); border-radius: 1rem;
-  padding: clamp(1rem, 3vw, 1.75rem); color: var(--brand-deep-blue); background: var(--brand-cream);
+  padding: 0; color: var(--brand-deep-blue); background: var(--brand-cream);
   box-shadow: 0 1rem 4rem #082d5b33;
 }
 .controller-settings-modal::backdrop { background: #082d5b88; }
-.controller-settings-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-.controller-settings-heading h2 { margin: 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.5rem; }
-.controller-settings-note { font-size: 0.82rem; line-height: 1.5; }
-.controller-settings-section { border-top: 1px solid var(--brand-divider); margin-top: 1.25rem; padding-top: 0.5rem; }
-.controller-settings-section h3 { font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.1rem; }
+.controller-settings-header { position: sticky; top: 0; z-index: 1; padding: 1.25rem 1.5rem 0; background: var(--brand-cream); border-bottom: 1px solid var(--brand-divider); }
+.controller-settings-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.controller-settings-heading h2 { margin: 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.4rem; }
+.controller-settings-heading .controller-settings-note { margin: 0.3rem 0 1rem; }
+.controller-settings-note { font-size: 0.82rem; line-height: 1.55; }
+.controller-settings-nav { display: flex; gap: 0.25rem; }
+.controller-settings-nav button { flex: 1; min-height: 2.9rem; padding: 0.6rem 0.4rem; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--brand-deep-blue); font: inherit; font-size: 0.85rem; font-weight: 700; cursor: pointer; }
+.controller-settings-nav button[aria-pressed="true"] { border-bottom-color: var(--brand-burgundy); color: var(--brand-burgundy); }
+.controller-settings-nav button:focus-visible { outline: 2px solid var(--brand-deep-blue); outline-offset: -4px; }
+.controller-settings-content { padding: 1.25rem 1.5rem; }
+.controller-settings-content [hidden] { display: none; }
+.controller-settings-section + .controller-settings-section { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--brand-divider); }
+.controller-settings-section h3 { margin: 0 0 0.75rem; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.05rem; }
+.controller-settings-section-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
 .controller-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
-.controller-settings-actions .controller-action { width: auto; min-height: 2.75rem; padding: 0.6rem 1rem; font-size: 0.9rem; }
-.controller-settings-details { display: grid; gap: 0.75rem; font-size: 0.86rem; }
+.controller-settings-modal .controller-action { width: auto; min-height: 2.75rem; padding: 0.6rem 1rem; font-size: 0.9rem; }
+.controller-settings-modal .controller-secondary-action { min-height: 2.75rem; padding: 0.6rem 0.9rem; font-size: 0.85rem; }
+.controller-sync-card { padding: 1rem; border: 1px solid var(--brand-divider); border-radius: 0.75rem; background: white; }
+.controller-settings-details { display: grid; gap: 0.6rem; margin: 1rem 0 0; font-size: 0.82rem; line-height: 1.5; }
 .controller-settings-details div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; }
 .controller-settings-details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
-.controller-sync-state { font-size: 1.2rem; font-weight: 800; }
+.controller-sync-state { display: inline-flex; align-items: center; gap: 0.45rem; margin: 0; border: 1px solid var(--brand-divider); border-radius: 2rem; padding: 0.25rem 0.65rem; font-size: 0.8rem; font-weight: 800; }
+.controller-sync-state > span { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: currentColor; }
+.controller-sync-state-failed { color: var(--brand-burgundy); border-color: currentColor; }
+.controller-sync-state-running, .controller-sync-state-starting, .controller-sync-state-syncing { background: var(--brand-deep-blue); color: white; }
+.controller-settings-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.8rem 0; }
+.controller-settings-totals > div { border: 1px solid var(--brand-divider); border-radius: 0.65rem; padding: 0.75rem 1rem; background: white; }
+.controller-settings-totals dt { font-size: 0.8rem; }
+.controller-settings-totals dd { margin: 0.2rem 0 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.8rem; font-weight: 800; }
 .controller-settings-section form { display: grid; gap: 0.65rem; }
 .controller-settings-section form label:not(:first-child) { margin-top: 0.65rem; }
-.controller-danger { border-top: 2px solid var(--brand-burgundy); color: var(--brand-burgundy); }
+.controller-settings-section form button { justify-self: start; margin-top: 0.5rem; }
+.controller-settings-feedback { padding: 0.75rem; border: 1px solid var(--brand-divider); border-radius: 0.5rem; background: white; font-size: 0.85rem; }
+.controller-settings-footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; bottom: 0; z-index: 1; padding: 0.8rem 1.5rem; background: var(--brand-cream); border-top: 1px solid var(--brand-divider); }
+.controller-danger { padding: 1rem; border: 1px solid var(--brand-burgundy); border-radius: 0.75rem; color: var(--brand-burgundy); background: white; }
+.controller-danger > p, .controller-danger > ul { font-size: 0.9rem; line-height: 1.6; }
 .controller-confirmation { border: 1px solid var(--brand-divider); border-radius: 0.6rem; background: white; padding: 1rem; margin-top: 0.75rem; }
 .controller-confirmation label { display: block; margin-bottom: 0.5rem; }
 .controller-confirmation input { margin-bottom: 0.8rem; }
 @media (max-width: 500px) {
   .controller-checkin-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .controller-settings-header { padding: 1rem 1rem 0; }
+  .controller-settings-content { padding: 1rem; }
+  .controller-settings-footer { padding: 0.75rem 1rem; }
+  .controller-settings-footer > span { display: none; }
+  .controller-settings-footer > button { margin-left: auto; }
+  .controller-settings-nav button { font-size: 0.75rem; }
   .controller-settings-details div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
 }
-.controller-reset-modal { width: min(34rem, calc(100vw - 2rem)); background: white; }
+.controller-reset-modal { width: min(34rem, calc(100vw - 2rem)); padding: 1.5rem; background: white; }
+.controller-reset-modal p { font-size: 0.9rem; line-height: 1.6; }
+.controller-reset-modal label { display: block; margin-bottom: 0.5rem; }
+.controller-reset-modal input { margin-bottom: 1rem; }

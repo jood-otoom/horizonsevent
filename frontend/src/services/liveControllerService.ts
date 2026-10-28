@@ -156,11 +156,17 @@ export function parseSettings(value: unknown): ControllerSettings {
   return settings as unknown as ControllerSettings;
 }
 
-async function invokeController(body?: unknown, admin = true) {
+async function invokeController(body?: unknown, admin = true, timeout?: number) {
   const { data, error } = await client().functions.invoke(body ? "controller-submit" : "controller-submit?view=settings", {
-    method: body ? "POST" : "GET", ...(body ? { body } : {}),
+    method: body ? "POST" : "GET", ...(body ? { body } : {}), ...(timeout ? { timeout } : {}),
   });
   if (error) {
+    const cause = "context" in error ? error.context : error;
+    if (timeout && cause instanceof Error && ["AbortError", "TimeoutError"].includes(cause.name)) {
+      throw new Error(body
+        ? "Settings request timed out after 15 seconds. The operation may have completed. Refresh status or retry with the same submission ID."
+        : "Settings took longer than 15 seconds to load. Refresh the status to try again.");
+    }
     const status = "context" in error && error.context instanceof Response ? error.context.status : null;
     if (status === 403) throw new ControllerConflictError(admin
       ? "Settings and exact-total corrections are available to event administrators only."
@@ -224,12 +230,12 @@ export const liveControllerService: ControllerService = {
     return parseCheckinSubmission(data);
   },
   async getSettings() {
-    const data = await invokeController();
+    const data = await invokeController(undefined, true, 15_000);
     return parseSettings(data.settings);
   },
   async updateSettings(request) {
-    const data = await invokeController({ eventId: 17135, ...request });
-    return { settings: parseSettings(data.settings), checkins: parseCheckins(data.checkins), record: parseRecord(data.record) };
+    const data = await invokeController({ eventId: 17135, ...request }, true, 15_000);
+    return { settings: parseSettings(data.settings), record: parseRecord(data.record) };
   },
   async undoAction({ requestId, originalRequestId, reason }): Promise<UndoResponse> {
     const { data, error } = await client().functions.invoke("controller-submit", {

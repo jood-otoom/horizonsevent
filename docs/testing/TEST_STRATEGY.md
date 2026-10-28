@@ -1,5 +1,13 @@
 # Test strategy
 
+## October 29 sync/Reset control repair
+
+The real deployed admin response is `{record,settings}`. Service regressions pass that exact shape for Start, Stop and Reset without invented check-in data; malformed settings or missing receipts still fail validation. The installed Supabase Functions SDK is exercised with mocked fetch and fake timers: a Settings request remains pending at 14,999ms, aborts at 15,000ms, clears its timer, and issues no extra mutation. Other controller calls retain their existing timeout behavior.
+
+Component regressions cover Start → Stop → reachable guarded Reset, authoritative newer-version recovery after lost Start/Stop receipts, unchanged status retaining its retry, one fresh Stop after a definite version conflict, uncertain numerical/reset requests reusing their original payload/ID, native nested Escape isolation, and pending-reset double-click/cancel guards. Source review found and corrected the nested native cancel event reaching the parent dialog. All reset/mutation tests use isolated in-memory data.
+
+`pnpm typecheck`, `pnpm lint`, `pnpm test` (134 frontend +65 backend), `pnpm build`, `git diff --check`, and the pinned PGlite isolated SQL runner all passed for this repair. The production build retains the existing nonfatal 500kB chunk warning. Browser synthetic checks used a built development-mode demo (never the production artifact): saved registrations/target, opened typed reset, reset synthetic MEET to zero, and retained target 1,500. At 390×844 the modal measured 352×812 with no horizontal overflow; captured console warnings/errors were empty. Production smoke evidence is recorded in the deployment guide. No live reset or production count submission is permitted for this repair.
+
 ## October 28 readiness verification
 
 The current readiness release supersedes the older reconciliation, automatic retry, hourly scheduling and anonymous-aggregate denial procedures recorded below. Use the current API/schema/security/runbook documents for operation. Historical evidence is retained for traceability and is not proof of current deployment.
