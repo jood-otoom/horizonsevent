@@ -4,7 +4,7 @@
 
 Cover MEET, MATCH, and GROW with synthetic internally stale data: retained counts, percentages, averages, and targets must remain accurate while visible labels and accessible names omit the word **Stale**. Keep the MEET **Snapshot** label for its existing snapshot state, missing-data/unavailable states, and the controller's private synchronization diagnostics. This is a public presentation change; it must not remove internal freshness status, stale-value retention after failure, Realtime/refetch behavior, or the 15-second fallback.
 
-Component checks cover the public text and ARIA output; hook/service checks continue to cover retained authoritative values and internal failure status. Record actual test, browser, and deployment results separately when executed. Historical stale-label assertions below describe the earlier presentation and are superseded by this guidance.
+Component checks cover the public text and ARIA output; hook/service checks continue to cover retained authoritative values and internal failure status. Targeted pillar and dashboard-hook tests passed17/17; TypeScript, lint, build and diff checks passed. The production browser and exact-artifact readback verified no visible/accessibility Stale text while retaining the published counters; see the deployment guide for hashes and values. Historical stale-label assertions below describe the earlier presentation and are superseded by this guidance.
 
 ## October 29 reset scope correction
 
