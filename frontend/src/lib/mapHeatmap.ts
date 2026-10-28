@@ -1,5 +1,8 @@
-// Sequential tints of the approved cream, primary red, and burgundy palette.
-const HEATMAP_COLORS = ["#F5E6E4", "#E7C6CA", "#D49DA8", "#C66A80", "#AC0F2E", "#7A0019"] as const;
+// The map-only event palette moves from luminous pink to saturated burgundy.
+const HEATMAP_COLORS = [
+  "#FFF0F3", "#FFD6DF", "#FFB4C5", "#FF9CB2", "#FF8098",
+  "#FF5A78", "#E91E49", "#C40032", "#9F0028",
+] as const;
 
 export interface HeatmapScale {
   colorFor: (total: number | undefined) => string | null;
@@ -14,8 +17,8 @@ export function createHeatmapScale(totals: readonly number[]): HeatmapScale {
 
   distinct.forEach((total, index) => {
     const colorIndex = distinct.length === 1
-      ? Math.floor(HEATMAP_COLORS.length / 2)
-      : Math.min(HEATMAP_COLORS.length - 1, Math.floor(index * HEATMAP_COLORS.length / distinct.length));
+      ? HEATMAP_COLORS.length - 1
+      : Math.round(index * (HEATMAP_COLORS.length - 1) / (distinct.length - 1));
     const color = HEATMAP_COLORS[colorIndex];
     colors.set(total, color);
   });

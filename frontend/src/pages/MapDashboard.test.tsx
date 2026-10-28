@@ -73,7 +73,7 @@ describe("Jordan startup map", () => {
     expectStatistics(container, expected.all);
     expect(container.querySelector(".dashboard-header")).not.toBeNull();
     expect(container.querySelector(".dashboard-footer")).not.toBeNull();
-    expect(container.querySelector(".map-employment-card")?.textContent).toContain("2 employment values flagged missing");
+    expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
     expect(screen.queryByText("266")).toBeNull();
   });
 
@@ -110,6 +110,10 @@ describe("Jordan startup map", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     expectStatistics(container, expected.all);
     expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+
+    fireEvent.click(screen.getByTestId("region-ajlun"));
+    fireEvent.click(container.querySelector(".map-sectors-card")!);
+    expectStatistics(container, expected.all);
   });
 
   it("offers eight pins and keyboard-selectable regions on a data-ranked heatmap", () => {
@@ -118,6 +122,7 @@ describe("Jordan startup map", () => {
     expect(map.querySelectorAll(".map-regions path")).toHaveLength(12);
     expect(map.querySelectorAll(".map-region.is-neutral")).toHaveLength(4);
     expect(map.querySelectorAll(".map-pins .map-pin")).toHaveLength(8);
+    expect(map.querySelectorAll("text")).toHaveLength(0);
     expect(map.querySelectorAll(".map-network-lines")).toHaveLength(0);
     for (const id of MAP_GOVERNORATE_IDS) expect(screen.getByTestId("pin-" + id)).toBeTruthy();
     const aqabaFill = screen.getByTestId("region-aqaba").style.fill;
@@ -133,5 +138,27 @@ describe("Jordan startup map", () => {
     expectStatistics(container, expected.amman);
     expect(amman.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByTestId("region-aqaba").style.fill).toBe(aqabaFill);
+  });
+
+  it("scales sector tint to the selected population and keeps zero gender visible", () => {
+    const { container } = render(<MapDashboard />);
+    const tint = (index: number) => Number.parseInt(
+      (container.querySelectorAll<HTMLElement>(".map-sector")[index]).style.getPropertyValue("--map-sector-tone"),
+      10,
+    );
+    expect(tint(2)).toBeGreaterThan(tint(0));
+    expect(tint(2)).toBe(100);
+    expect(tint(7)).toBe(0);
+    expect(container.querySelectorAll(".map-sector")[2].getAttribute("data-contrast")).toBe("light");
+    expect(container.querySelectorAll(".map-sector")[7].getAttribute("data-contrast")).toBe("dark");
+
+    fireEvent.click(screen.getByTestId("region-ajlun"));
+    expect(tint(6)).toBe(100);
+    expect(tint(2)).toBeLessThan(tint(6));
+
+    fireEvent.click(screen.getByTestId("region-maan"));
+    expect(container.querySelector(".map-gender-female")?.getAttribute("data-empty")).toBe("true");
+    expect(container.querySelector(".map-gender-labels")?.textContent).toContain("0% · Female participants");
+    expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
   });
 });
