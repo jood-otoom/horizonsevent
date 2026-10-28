@@ -21,7 +21,10 @@ export default function MapDashboard() {
     setSelectedGovernorate(current => current === id ? "all" : id);
   }
 
-  return <main className="map-shell" aria-label="New Horizons Jordan startup map">
+  return <main className="map-shell" aria-label="New Horizons Jordan startup map" onClick={event => {
+    if (!(event.target instanceof Element) || event.target.closest(".map-region, .map-pin")) return;
+    setSelectedGovernorate("all");
+  }}>
     <DashboardBackground completeDots />
     <DashboardHeader />
     <section className="map-cards" aria-label="Jordan startup statistics">
@@ -35,11 +38,11 @@ export default function MapDashboard() {
         <TotalStartupsCard summary={summary} selectionName={selectionName} selectionKey={selectedGovernorate}
           onReset={() => setSelectedGovernorate("all")} />
         <div className="map-middle-row">
-          <GenderCard summary={summary} selectionKey={selectedGovernorate} />
-          <EmploymentCard summary={summary} selectionKey={selectedGovernorate} />
+          <GenderCard summary={summary} />
+          <EmploymentCard summary={summary} />
         </div>
-        <StagesCard summary={summary} selectionKey={selectedGovernorate} />
-        <SectorsGrid summary={summary} selectionKey={selectedGovernorate} />
+        <StagesCard summary={summary} />
+        <SectorsGrid summary={summary} />
       </div>
     </section>
     <DashboardFooter />

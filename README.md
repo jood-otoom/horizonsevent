@@ -32,7 +32,7 @@ MAP_WORKBOOK_PATH='/path/to/Map Master - E4DE v2.xlsx' python3 -m unittest disco
 
 The current output has 265 stage-assigned startups across eight governorates; the 124 `NA` stage rows, including 15 ICON rows, are excluded. Two eligible Amman employee counts are marked missing in column X despite numeric zero in column O. The 142 startups employing people and 762 counted employees exclude those unknown values. Review the generated diff and the [workbook mapping and quality guide](docs/integrations/MAP_WORKBOOK.md) before release. The earlier `Participants List.xlsx` SQL seed and `scripts/prepare_map_snapshot.py` remain historical for the already published 266-startup row; do not rerun that insert.
 
-The development preview targets 1792×1024 and preserves the 12-governorate SVG geometry. Only the eight represented governorates receive counts and interactive pins. The [UI and branding guide](docs/frontend/UI_AND_BRANDING.md) documents the current layout and local visual checks. A local preview is not a production deployment or physical LED acceptance.
+The development preview targets 1792×1024 and preserves the 12-governorate SVG geometry. Only the eight represented governorates receive counts and bright gradient glow pins; visible governorate labels are omitted. Selecting a pin or region updates every card, and clicking elsewhere on the page resets to the national view. The map-only visual palette follows the owner-supplied vivid reference. Its card pictograms now use the owner's supplied high-resolution PNG portrait and matching icon sheet, while sector colors remain ranked within the current selection. The [UI and branding guide](docs/frontend/UI_AND_BRANDING.md) documents the current layout and local visual checks. A local preview is not a production deployment or physical LED acceptance.
 
 ## LED presentation
 
@@ -62,6 +62,8 @@ See [deployment](docs/deployment/DEPLOYMENT.md) for later hosted-project setup, 
 
 - `frontend/` — preserved dashboard/controller UI, demo providers, live Supabase Auth and aggregate clients.
 - `frontend/src/pages/MapDashboard.tsx` — separate `/map` display using one static, aggregate-only workbook snapshot.
+- `frontend/src/components/map/MapIcon.tsx` — reusable 64-unit SVG viewport for the supplied high-resolution PNG card icons, with 24, 36, 48, and 64 px sizes.
+- `frontend/src/assets/map/icons/` — owner-supplied female portrait and matching icon sheet used by `MapIcon`.
 - `frontend/src/data/mapSnapshot.json` — generated national and per-governorate counts with no source records.
 - `scripts/prepare_map_dashboard_data.py` — reviewable import from the private `Map master` worksheet.
 - `supabase/functions/` — public aggregate dashboard read, authenticated dashboard/controller functions, protected sync, and gated service-only dry-run functions; shared validated b2match logic.
