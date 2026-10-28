@@ -1,51 +1,29 @@
 import { withSupabase } from "@supabase/server";
-import { B2matchSyncError, fetchAllParticipantsWithStats } from "../_shared/b2matchClient.ts";
-import { requirePublishableMeet } from "../_shared/dryRunSummary.ts";
-import { handleNamedSecretRequest } from "../_shared/namedSecretAuth.ts";
+import { parseDispatch, runMeetSync, workerAuthorized, type SyncDatabase } from "../_shared/meetSync.ts";
 
-const secured = withSupabase({ auth: "secret:automations", cors: "disabled" }, async (request, ctx) => {
+const worker = withSupabase({ auth: "none", cors: "disabled" }, async (request, ctx) => {
   if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
-  if (Deno.env.get("B2MATCH_SYNC_ENABLED") !== "true" || Deno.env.get("B2MATCH_EVENT_ID") !== "17135") {
-    return Response.json({ status: "disabled" }, { status: 503 });
+  if (Deno.env.get("B2MATCH_EVENT_ID") !== "17135") {
+    return Response.json({ status: "unavailable" }, { status: 503 });
   }
-  const runId = crypto.randomUUID();
-  const token = crypto.randomUUID();
-  const claim = await ctx.supabaseAdmin.rpc("claim_meet_sync", {
-    p_event_id: 17135, p_run_id: runId, p_token: token,
-  });
-  if (claim.error) return Response.json({ status: "unavailable" }, { status: 503 });
-  if (claim.data !== true) return Response.json({ status: "already_running" }, { status: 409 });
-  let pagesProcessed = 0;
-  let recordsProcessed = 0;
+  let dispatch;
   try {
-    const result = await fetchAllParticipantsWithStats({
-      apiKey: Deno.env.get("B2MATCH_API_KEY") ?? "",
-      eventId: "17135",
-    });
-    pagesProcessed = result.pagesProcessed;
-    recordsProcessed = result.recordsProcessed;
-    const counts = requirePublishableMeet(result.participants, "17135");
-    const publication = await ctx.supabaseAdmin.rpc("complete_meet_sync", {
-      p_run_id: runId, p_token: token, p_registered: counts.registered,
-      p_checked_in: counts.checkedIn, p_pages: result.pagesProcessed,
-      p_records: result.recordsProcessed,
-    });
-    if (publication.error || publication.data !== true) throw new B2matchSyncError("publication_failed");
-    return Response.json({ status: "complete", pagesProcessed: result.pagesProcessed,
-      recordsProcessed: result.recordsProcessed });
-  } catch (error) {
-    const code = error instanceof B2matchSyncError ? error.code : "unknown";
-    await ctx.supabaseAdmin.rpc("fail_meet_sync", {
-      p_run_id: runId, p_token: token, p_error: code,
-      p_pages: error instanceof B2matchSyncError ? Math.max(error.pagesProcessed, pagesProcessed) : pagesProcessed,
-      p_records: error instanceof B2matchSyncError ? Math.max(error.recordsProcessed, recordsProcessed) : recordsProcessed,
-    });
-    return Response.json({ status: "failed" }, { status: 502 });
+    const body = await request.text();
+    if (body.length > 256) throw new Error("invalid_dispatch");
+    dispatch = parseDispatch(JSON.parse(body));
+  } catch {
+    return Response.json({ error: "invalid_dispatch" }, { status: 400 });
   }
+  return runMeetSync(ctx.supabaseAdmin as unknown as SyncDatabase, {
+    apiKey: Deno.env.get("B2MATCH_API_KEY") ?? "", eventId: "17135", generation: dispatch.generation,
+  });
 });
 
 export default {
   async fetch(request: Request) {
-    return handleNamedSecretRequest(request, "automations", Deno.env.get("SUPABASE_SECRET_KEYS"), secured);
+    if (!await workerAuthorized(request, Deno.env.get("B2MATCH_WORKER_SECRET"))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    return worker(request);
   },
 };

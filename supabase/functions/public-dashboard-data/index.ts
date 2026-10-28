@@ -8,7 +8,6 @@ const publicRead = withSupabase({ auth: "none", cors: "disabled" }, (request, ct
   publicDashboardResponse(
     request,
     ctx.supabaseAdmin as unknown as PublicDashboardClient,
-    Deno.env.get("B2MATCH_SYNC_ENABLED") === "true" ? "sync" : "snapshot",
   ));
 
 export default {

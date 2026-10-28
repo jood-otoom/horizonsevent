@@ -1,13 +1,21 @@
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const integer = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 2_147_483_647;
+const version = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 
 export type Submission =
   | { kind: "meeting"; requestId: string; quantity: 1 | 2 | 3 }
   | { kind: "feedback"; requestId: string; rating: 1 | 2 | 3 | 4 | 5 }
-  | { kind: "checkin"; requestId: string }
-  | { kind: "reconcile_checkins"; requestId: string; expectedManual: number;
-      expectedApi: number; expectedApiAt: string }
+  | { kind: "checkin"; requestId: string; quantity: 1 | 2 | 5 | 10 }
+  | { kind: "set_checkins"; requestId: string; checkedIn: number; expectedVersion: number }
+  | { kind: "start_sync" | "stop_sync" | "manual_mode"; requestId: string; expectedVersion: number }
+  | { kind: "update_settings"; requestId: string; expectedVersion: number; registeredOverride?: number; meetingTarget?: number }
+  | { kind: "reset_event"; requestId: string; expectedVersion: number; confirmation: "RESET EVENT" }
   | { kind: "undo"; requestId: string; originalRequestId: string;
       reason: "duplicate" | "wrong_count" | "wrong_rating" | "other" };
+
+export function isAdminSubmission(submission: Submission): boolean {
+  return ["set_checkins", "start_sync", "stop_sync", "manual_mode", "update_settings", "reset_event"].includes(submission.kind);
+}
 
 export function parseSubmission(value: unknown): Submission {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid_submission");
@@ -20,14 +28,25 @@ export function parseSubmission(value: unknown): Submission {
   if (body.kind === "feedback" && Number.isInteger(body.rating) && Number(body.rating) >= 1 && Number(body.rating) <= 5) {
     return { kind: "feedback", requestId: body.requestId, rating: body.rating as 1 | 2 | 3 | 4 | 5 };
   }
-  if (body.kind === "checkin") return { kind: "checkin", requestId: body.requestId };
-  if (body.kind === "reconcile_checkins" && Number.isSafeInteger(body.expectedManual) &&
-      Number(body.expectedManual) >= 0 && Number.isSafeInteger(body.expectedApi) &&
-      Number(body.expectedApi) >= 0 && typeof body.expectedApiAt === "string" &&
-      Number.isFinite(Date.parse(body.expectedApiAt))) {
-    return { kind: "reconcile_checkins", requestId: body.requestId,
-      expectedManual: Number(body.expectedManual), expectedApi: Number(body.expectedApi),
-      expectedApiAt: body.expectedApiAt };
+  if (body.kind === "checkin" && (body.quantity === undefined || body.quantity === 1 || body.quantity === 2 || body.quantity === 5 || body.quantity === 10)) {
+    return { kind: "checkin", requestId: body.requestId, quantity: (body.quantity ?? 1) as 1 | 2 | 5 | 10 };
+  }
+  if (body.kind === "set_checkins" && integer(body.checkedIn) && version(body.expectedVersion)) {
+    return { kind: "set_checkins", requestId: body.requestId, checkedIn: body.checkedIn, expectedVersion: body.expectedVersion };
+  }
+  if ((body.kind === "start_sync" || body.kind === "stop_sync" || body.kind === "manual_mode") && version(body.expectedVersion)) {
+    return { kind: body.kind, requestId: body.requestId, expectedVersion: body.expectedVersion };
+  }
+  if (body.kind === "update_settings" && version(body.expectedVersion) &&
+      (body.registeredOverride !== undefined || body.meetingTarget !== undefined) &&
+      (body.registeredOverride === undefined || integer(body.registeredOverride)) &&
+      (body.meetingTarget === undefined || (integer(body.meetingTarget) && body.meetingTarget > 0))) {
+    return { kind: "update_settings", requestId: body.requestId, expectedVersion: body.expectedVersion,
+      ...(body.registeredOverride !== undefined ? { registeredOverride: body.registeredOverride as number } : {}),
+      ...(body.meetingTarget !== undefined ? { meetingTarget: body.meetingTarget as number } : {}) };
+  }
+  if (body.kind === "reset_event" && version(body.expectedVersion) && body.confirmation === "RESET EVENT") {
+    return { kind: "reset_event", requestId: body.requestId, expectedVersion: body.expectedVersion, confirmation: "RESET EVENT" };
   }
   if (body.kind === "undo" && typeof body.originalRequestId === "string" &&
       uuid.test(body.originalRequestId) && body.originalRequestId !== body.requestId &&

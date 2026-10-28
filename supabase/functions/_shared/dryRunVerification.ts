@@ -20,6 +20,7 @@ const SAFE_FAILURE_CODES = new Set([
   "missing_api_key", "invalid_event_id", "invalid_response", "wrong_event",
   "upstream_redirect", "upstream_unauthorized", "event_not_found", "upstream_failure",
   "transient_upstream_failure", "invalid_json", "network_failure", "retry_after_exceeds_budget",
+  "rate_limited", "request_timeout",
   "repeated_current_page", "inconsistent_pagination", "conflicting_participant",
   "incomplete_pagination", "repeated_page_token", "page_limit_exceeded", "sync_timeout",
   "unknown_participant_status",

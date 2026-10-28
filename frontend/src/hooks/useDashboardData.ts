@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { dataMode, supabasePublishableKey, supabaseUrl } from "../lib/supabaseClient";
+import { dataMode, supabase, supabasePublishableKey, supabaseUrl } from "../lib/supabaseClient";
 import { fetchLiveDashboard, getMockMeetMetrics } from "../services/dashboardService";
 import { mockFeedbackProvider, mockMeetingProvider } from "../services/mockDashboardProvider";
 import type { DashboardMetrics, MeetMetrics, MetricResource } from "../types/dashboard";
@@ -46,9 +46,27 @@ function sameDashboard(a: DashboardMetrics, b: DashboardMetrics): boolean {
     a.grow.maximumRating === b.grow.maximumRating;
 }
 
-export default function useDashboardData(options?: { mode?: "demo" | "live"; load?: typeof fetchLiveDashboard }): DashboardMetrics {
+type SubscribeToDashboard = (refresh: () => void) => () => void;
+
+function subscribeToDashboard(refresh: () => void): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+  const channel = client.channel("public-event-17135")
+    .on("postgres_changes", {
+      event: "UPDATE", schema: "public", table: "dashboard_aggregates", filter: "event_id=eq.17135",
+    }, refresh)
+    .subscribe((status) => { if (status === "SUBSCRIBED") refresh(); });
+  return () => { void client.removeChannel(channel); };
+}
+
+export default function useDashboardData(options?: {
+  mode?: "demo" | "live";
+  load?: typeof fetchLiveDashboard;
+  subscribe?: SubscribeToDashboard;
+}): DashboardMetrics {
   const mode = options?.mode ?? dataMode;
   const load = options?.load ?? fetchLiveDashboard;
+  const subscribe = options?.subscribe ?? subscribeToDashboard;
   const [metrics, setMetrics] = useState<DashboardMetrics>(() => mode === "live" ? pendingDashboard() : demoDashboard());
 
   useEffect(() => {
@@ -90,12 +108,15 @@ export default function useDashboardData(options?: { mode?: "demo" | "live"; loa
     const onReconnect = () => { void refresh(); };
     window.addEventListener("online", onReconnect);
     const timer = window.setInterval(() => { void refresh(); }, 15_000);
+    // Realtime is a notification only; every update refetches the validated public payload.
+    const unsubscribe = subscribe(onReconnect);
     return () => {
       active = false;
+      unsubscribe();
       window.clearInterval(timer);
       window.removeEventListener("online", onReconnect);
     };
-  }, [mode, load]);
+  }, [mode, load, subscribe]);
 
   return metrics;
 }

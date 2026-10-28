@@ -33,14 +33,13 @@ export interface B2matchClientOptions {
   eventId: string;
   fetcher?: typeof fetch;
   now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
 }
 
 export class B2matchSyncError extends Error {
   pagesProcessed = 0;
   recordsProcessed = 0;
   requestsMade = 0;
-  constructor(readonly code: string, readonly field?: string, readonly observedKind?: string) {
+  constructor(readonly code: string, readonly field?: string, readonly observedKind?: string, public httpStatus?: number) {
     super(code);
   }
 }
@@ -138,16 +137,6 @@ export function parseParticipantPage(value: unknown, eventId: string): Participa
   return { participants, pagination: { totalItems, pageItems, currentPage, nextPageToken: token } };
 }
 
-function retryDelay(response: Response | null, attempt: number): number {
-  const header = response?.headers.get("retry-after");
-  if (header) {
-    const seconds = Number(header);
-    const until = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(header) - Date.now();
-    if (Number.isFinite(until)) return Math.max(0, until);
-  }
-  return Math.min(10_000, 250 * 2 ** attempt + Math.random() * 250);
-}
-
 export async function fetchAllParticipantsWithStats(options: B2matchClientOptions): Promise<{
   participants: Participant[];
   pagesProcessed: number;
@@ -158,7 +147,6 @@ export async function fetchAllParticipantsWithStats(options: B2matchClientOption
   if (!/^\d+$/.test(options.eventId)) throw new B2matchSyncError("invalid_event_id");
   const fetcher = options.fetcher ?? fetch;
   const now = options.now ?? Date.now;
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const deadline = now() + MAX_SYNC_MS;
   const seenTokens = new Set<string>();
   const seenPages = new Set<string>();
@@ -168,55 +156,48 @@ export async function fetchAllParticipantsWithStats(options: B2matchClientOption
   let rawCount = 0;
   let completedPages = 0;
   let requestsMade = 0;
+  let responseStatus: number | undefined;
 
   try {
   for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber++) {
+    responseStatus = undefined;
     if (now() >= deadline) throw new B2matchSyncError("sync_timeout");
     const url = new URL(PARTICIPANTS_URL);
     url.searchParams.set("event_id", options.eventId);
     url.searchParams.set("limit", String(PAGE_SIZE));
     if (nextToken) url.searchParams.set("page", nextToken);
 
-    let page: ParticipantPage | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), Math.min(REQUEST_TIMEOUT_MS, Math.max(1, deadline - now())));
-      let response: Response | null = null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.min(REQUEST_TIMEOUT_MS, Math.max(1, deadline - now())));
+    let page: ParticipantPage;
+    try {
+      requestsMade++;
+      const response = await fetcher(url.toString(), {
+        method: "GET",
+        headers: { authorization: `Bearer ${options.apiKey}`, accept: "application/json" },
+        redirect: "manual",
+        signal: controller.signal,
+      });
+      responseStatus = response.status;
+      if (response.status >= 300 && response.status < 400) throw new B2matchSyncError("upstream_redirect", undefined, undefined, response.status);
+      if (response.status === 401 || response.status === 403) throw new B2matchSyncError("upstream_unauthorized", undefined, undefined, response.status);
+      if (response.status === 404) throw new B2matchSyncError("event_not_found", undefined, undefined, response.status);
+      if (response.status === 429) throw new B2matchSyncError("rate_limited", undefined, undefined, response.status);
+      if (!response.ok) throw new B2matchSyncError("upstream_failure", undefined, undefined, response.status);
+      let body: unknown;
       try {
-        requestsMade++;
-        response = await fetcher(url.toString(), {
-          method: "GET",
-          headers: { authorization: `Bearer ${options.apiKey}`, accept: "application/json" },
-          redirect: "manual",
-          signal: controller.signal,
-        });
-        if (response.status >= 300 && response.status < 400) throw new B2matchSyncError("upstream_redirect");
-        if (response.status === 401 || response.status === 403) throw new B2matchSyncError("upstream_unauthorized");
-        if (response.status === 404) throw new B2matchSyncError("event_not_found");
-        if (!response.ok) {
-          if (response.status !== 429 && response.status < 500) throw new B2matchSyncError("upstream_failure");
-          throw new B2matchSyncError("transient_upstream_failure");
-        }
-        let body: unknown;
-        try {
-          body = await response.json();
-        } catch {
-          throw new B2matchSyncError("invalid_json");
-        }
-        page = parseParticipantPage(body, options.eventId);
-        break;
-      } catch (error) {
-        const code = error instanceof B2matchSyncError ? error.code : "network_failure";
-        if (code !== "network_failure" && code !== "transient_upstream_failure") throw error;
-        if (attempt === 2 || now() >= deadline) throw new B2matchSyncError(code);
-        const delay = retryDelay(response, attempt);
-        if (now() + delay >= deadline) throw new B2matchSyncError("retry_after_exceeds_budget");
-        await sleep(delay);
-      } finally {
-        clearTimeout(timeout);
+        body = await response.json();
+      } catch {
+        if (controller.signal.aborted) throw new B2matchSyncError("request_timeout");
+        throw new B2matchSyncError("invalid_json");
       }
+      page = parseParticipantPage(body, options.eventId);
+    } catch (error) {
+      if (error instanceof B2matchSyncError) throw error;
+      throw new B2matchSyncError(controller.signal.aborted ? "request_timeout" : "network_failure");
+    } finally {
+      clearTimeout(timeout);
     }
-    if (!page) throw new B2matchSyncError("upstream_failure");
     // The live API uses an empty string on its first page; opaque next-page tokens
     // remain the authoritative loop guard when no current-page identifier is supplied.
     if (page.pagination.currentPage) {
@@ -253,6 +234,7 @@ export async function fetchAllParticipantsWithStats(options: B2matchClientOption
   throw new B2matchSyncError("page_limit_exceeded");
   } catch (error) {
     if (error instanceof B2matchSyncError) {
+      error.httpStatus ??= responseStatus;
       error.pagesProcessed = completedPages;
       error.recordsProcessed = rawCount;
       error.requestsMade = requestsMade;

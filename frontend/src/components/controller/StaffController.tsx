@@ -7,20 +7,28 @@ import CheckinController from "./CheckinController";
 import FeedbackController from "./FeedbackController";
 import MeetingController from "./MeetingController";
 import { dataMode } from "../../lib/supabaseClient";
+import ControllerSettings from "./ControllerSettings";
+import { liveControllerService } from "../../services/liveControllerService";
+import { mockControllerService } from "../../services/mockControllerProvider";
 
 interface StaffControllerProps {
   service?: ControllerService;
 }
 
 export default function StaffController({ service }: StaffControllerProps) {
-  const controller = useControllerData(service);
+  const activeService = service ?? (dataMode === "live" ? liveControllerService : mockControllerService);
+  const controller = useControllerData(activeService);
   const { statsState } = controller;
   const [checkinsOpen, setCheckinsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <main className="controller-shell">
       <div className="controller-layout">
-        <ControllerHeader />
+        <ControllerHeader onSettings={() => setSettingsOpen(true)} disabled={controller.meetingState === "pending" ||
+          controller.feedbackState === "pending" || controller.checkinState === "pending" || controller.undoState === "pending"} />
+        <ControllerSettings open={settingsOpen} service={activeService} onClose={() => setSettingsOpen(false)}
+          onSaved={controller.refreshAfterSettings} />
         {statsState.status === "loading" && (
           <div className="controller-load-state" role="status">Loading {dataMode === "live" ? "event" : "demo"} statistics…</div>
         )}
@@ -50,9 +58,8 @@ export default function StaffController({ service }: StaffControllerProps) {
           </div>
           {checkinsOpen ? (
             <CheckinController status={controller.checkins} state={controller.checkinState}
-              message={controller.checkinMessage} reconcileState={controller.reconcileState}
-              reconcileMessage={controller.reconcileMessage} onSubmit={controller.submitCheckin}
-              onReconcile={controller.reconcileCheckins} onRefresh={controller.loadCheckins}
+              message={controller.checkinMessage} retry={controller.checkinRetry} onSubmit={controller.submitCheckin}
+              onSetExact={controller.setExactCheckins} onRefresh={controller.refreshCheckins}
               onHide={() => setCheckinsOpen(false)} />
           ) : (
             <button className="controller-checkin-toggle controller-secondary-action" type="button"

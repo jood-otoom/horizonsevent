@@ -34,7 +34,9 @@ describe("StaffController", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(screen.getByRole("button", { name: "Recording…" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Settings" }).hasAttribute("disabled")).toBe(true);
     expect(await screen.findByText("Meeting recorded successfully. Total: 1.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Settings" }).hasAttribute("disabled")).toBe(false);
     expect(screen.getByLabelText("1 completed meetings")).toBeTruthy();
   });
 
@@ -172,4 +174,48 @@ describe("StaffController", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check-ins Controller" }));
     expect(await screen.findByText("Check-in saved. Total: 5.")).toBeTruthy();
   });
+});
+
+it("supports +5 increments and replaces the exact check-in total", async () => {
+  const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 30 });
+  render(<StaffController service={service} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Check-ins Controller" }));
+  fireEvent.click(await screen.findByRole("button", { name: "+5 Check-ins" }));
+  await screen.findByText("Check-in saved. Total: 9.");
+  fireEvent.change(screen.getByLabelText("Exact checked-in total"), { target: { value: "12" } });
+  fireEvent.click(screen.getByRole("button", { name: "Set exact total" }));
+  await screen.findByText("Exact check-in total saved: 12.");
+  expect((await service.getCheckins()).checkedIn).toBe(12);
+  fireEvent.change(screen.getByLabelText("Exact checked-in total"), { target: { value: "" } });
+  expect(screen.getByRole("button", { name: "Set exact total" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.change(screen.getByLabelText("Exact checked-in total"), { target: { value: "31" } });
+  expect(screen.getByRole("button", { name: "Set exact total" }).hasAttribute("disabled")).toBe(true);
+});
+
+it("rejects a stale exact total and saves only after an explicit refresh", async () => {
+  const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 30 });
+  render(<StaffController service={service} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Check-ins Controller" }));
+  await screen.findByText("of 30 registered");
+  await service.submitCheckin({ requestId: "other-operator", quantity: 1 });
+  fireEvent.change(screen.getByLabelText("Exact checked-in total"), { target: { value: "12" } });
+  fireEvent.click(screen.getByRole("button", { name: "Set exact total" }));
+  await screen.findByText(/The event values changed or the total is invalid/);
+  expect((await service.getCheckins()).checkedIn).toBe(5);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh latest totals" }));
+  await screen.findByText("of 30 registered");
+  fireEvent.click(screen.getByRole("button", { name: "Set exact total" }));
+  await screen.findByText("Exact check-in total saved: 12.");
+});
+
+it("ignores rapid duplicate check-in taps", async () => {
+  const service = createMockControllerService({ delayMs: 30, initialCheckins: 4, registered: 30 });
+  const submit = vi.spyOn(service, "submitCheckin");
+  render(<StaffController service={service} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Check-ins Controller" }));
+  const increment = await screen.findByRole("button", { name: "+5 Check-ins" });
+  fireEvent.click(increment);
+  fireEvent.click(increment);
+  await screen.findByText("Check-in saved. Total: 9.");
+  expect(submit).toHaveBeenCalledTimes(1);
 });

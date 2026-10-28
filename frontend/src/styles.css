@@ -578,8 +578,7 @@ select { font: inherit; }
 .controller-history summary span { float: right; color: #536678; font-size: 0.85rem; }
 .controller-history-refresh { margin-top: 0.8rem; }
 
-.controller-history-list li,
-.controller-correction-actions {
+.controller-history-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -607,8 +606,6 @@ select { font: inherit; }
 
 .controller-secondary-action:disabled { cursor: not-allowed; opacity: 0.5; }
 .controller-secondary-action:hover:not(:disabled) { background: var(--brand-cream); }
-.controller-correction-actions { justify-content: flex-start; }
-.controller-correction-actions .controller-action { width: auto; min-height: 2.75rem; padding: 0.5rem 1rem; font-size: 0.85rem; }
 
 .controller-rating-group {
   display: flex;
@@ -669,10 +666,7 @@ select { font: inherit; }
 .controller-checkin-heading h2 { margin: 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.4rem; }
 .controller-checkin-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
 .controller-checkin-total strong { font-family: "Manrope Variable", Manrope, sans-serif; font-size: 2.8rem; font-variant-numeric: tabular-nums; }
-.controller-checkin-submit { width: min(100%, 16rem); }
-.controller-checkin-source, .controller-reconciliation { color: var(--brand-deep-blue); font-size: 0.86rem; }
-.controller-reconciliation { border-top: 1px solid var(--brand-divider); padding-top: 0.6rem; }
-.controller-reconciliation .controller-action { width: auto; min-height: 2.75rem; padding: 0.5rem 1rem; font-size: 0.8rem; }
+.controller-checkin-source { color: var(--brand-deep-blue); font-size: 0.86rem; }
 
 .controller-load-state {
   border: 1px solid var(--brand-divider);
@@ -709,7 +703,6 @@ select { font: inherit; }
 
 @media (max-width: 700px) {
   .controller-history-list li { align-items: flex-start; }
-  .controller-correction-actions { flex-wrap: wrap; }
   .controller-cards { grid-template-columns: minmax(0, 1fr); }
   .controller-header { flex-wrap: wrap; gap: 0.65rem; }
   .controller-card { padding: 1.25rem; }
@@ -918,3 +911,46 @@ select { font: inherit; }
   .map-region, .map-pin, .map-pin-glow, .map-gender-segment, .map-sector { transition: none; }
   .map-count-transition { animation: none; }
 }
+
+.controller-settings-button { margin-left: auto; display: grid; place-items: center; padding: 0.65rem; }
+.controller-checkin-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+.controller-checkin-actions .controller-action { min-height: 3rem; padding: 0.5rem; font-size: 0.9rem; }
+.controller-exact-form { display: grid; gap: 0.6rem; max-width: 30rem; margin-top: 1.25rem; }
+.controller-exact-form label, .controller-settings-modal label { font-weight: 700; }
+.controller-exact-form input, .controller-settings-modal input {
+  min-width: 0; width: 100%; min-height: 2.75rem; border: 1px solid var(--brand-divider); border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem; color: var(--brand-deep-blue); background: white; font: inherit;
+}
+.controller-exact-form input:focus-visible, .controller-settings-modal input:focus-visible {
+  outline: 3px solid var(--brand-deep-blue); outline-offset: 2px;
+}
+.controller-exact-form small, .controller-settings-modal small { font-size: 0.8rem; line-height: 1.5; }
+.controller-settings-modal {
+  width: min(42rem, calc(100vw - 2rem)); max-height: calc(100svh - 2rem); margin: auto;
+  overflow-y: auto; border: 1px solid var(--brand-divider); border-radius: 1rem;
+  padding: clamp(1rem, 3vw, 1.75rem); color: var(--brand-deep-blue); background: var(--brand-cream);
+  box-shadow: 0 1rem 4rem #082d5b33;
+}
+.controller-settings-modal::backdrop { background: #082d5b88; }
+.controller-settings-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.controller-settings-heading h2 { margin: 0; font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.5rem; }
+.controller-settings-note { font-size: 0.82rem; line-height: 1.5; }
+.controller-settings-section { border-top: 1px solid var(--brand-divider); margin-top: 1.25rem; padding-top: 0.5rem; }
+.controller-settings-section h3 { font-family: "Manrope Variable", Manrope, sans-serif; font-size: 1.1rem; }
+.controller-settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.controller-settings-actions .controller-action { width: auto; min-height: 2.75rem; padding: 0.6rem 1rem; font-size: 0.9rem; }
+.controller-settings-details { display: grid; gap: 0.75rem; font-size: 0.86rem; }
+.controller-settings-details div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; }
+.controller-settings-details dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.controller-sync-state { font-size: 1.2rem; font-weight: 800; }
+.controller-settings-section form { display: grid; gap: 0.65rem; }
+.controller-settings-section form label:not(:first-child) { margin-top: 0.65rem; }
+.controller-danger { border-top: 2px solid var(--brand-burgundy); color: var(--brand-burgundy); }
+.controller-confirmation { border: 1px solid var(--brand-divider); border-radius: 0.6rem; background: white; padding: 1rem; margin-top: 0.75rem; }
+.controller-confirmation label { display: block; margin-bottom: 0.5rem; }
+.controller-confirmation input { margin-bottom: 0.8rem; }
+@media (max-width: 500px) {
+  .controller-checkin-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .controller-settings-details div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+}
+.controller-reset-modal { width: min(34rem, calc(100vw - 2rem)); background: white; }

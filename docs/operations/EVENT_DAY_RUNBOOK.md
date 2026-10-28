@@ -1,23 +1,78 @@
 # Event-day operations
 
-## Current status
+## Release and pre-event checks
 
-The emergency check-in path exists in local code only. Do not use it on the hosted event until the migration, controller Edge Function, frontend release, and non-production rehearsal are approved and completed. Automatic b2match publishing remains disabled. The current hosted MEET value is a previously approved static snapshot, not a live API feed.
+This runbook describes the October 28 deployed function/schema implementation for October 29. Read-only source/configuration checks matched all five hosted functions to the local release; SQL confirmed the scheduler job, Stopped API mode, and zero runs/leases. These checks did not invoke B2Match or modify counters. Check [deployment evidence](../deployment/DEPLOYMENT.md) for the frontend release, secret provisioning, behavioral test results, current counters, and any blocker. Do not treat historical API snapshots as current attendance or source code as proof of deployment.
 
-## Staff check-in fallback after release
+Before operators rely on it, open [the public dashboard](https://horizonsevent.pages.dev/) and [the controller](https://horizonsevent.pages.dev/controller). Confirm the correct event/project, equal effective MEET/MATCH/GROW values, current MATCH target, public accessibility, controller authentication, and admin Settings access. Confirm the Check-ins Controller expands without an availability error. Record the designated operator, owner/escalation contact, last trusted counts, and verified recovery options. Confirm the provider's permitted API cadence and current portal/API counting parity before the operator starts a live session.
 
-1. Check `/` and `/controller` for the same registered and checked-in values. Confirm the b2match portal or synchronization is unavailable or delayed, and record the last trusted count.
-2. On `/controller`, open **Check-ins Controller**. For each entrance check-in missing from the displayed count, press **+1 Check-in** once. Wait for the saved confirmation before the next tap. If the response is uncertain, use **Retry +1 check-in**; it reuses the same request ID. Do not count a participant already reflected in the displayed total.
-3. Keep the controller open to verify the effective count. Hiding it has no data effect. If a tap was mistaken, expand **Action History** and click **Undo** on that check-in; it reverses immediately. If the result is uncertain, use **Retry undo** on the same action. Reconciled-session actions cannot be undone; escalate instead.
-4. If Supabase is unavailable, the button cannot save. Record entrance scans in a separate controlled offline log and reconcile them with the project owner after service returns. Do not assume a failed request was saved or enter an arbitrary total.
+Deployment and smoke testing must leave automatic synchronization stopped and preserve production counters/GROW. The critical reset button must not be invoked on the live event during testing. Owner-approved isolated tests establish reset behavior; they do not clear production testing data.
 
-## API recovery
+## Settings and permissions
 
-The latest raw API count appears beside the manual count only after a successful newer publishing sync. Manual mode remains authoritative until staff review the portal and choose **Review API count** then **Confirm verified API count**. A mismatch is expected while scans propagate; do not switch sources until the raw count is verified. The server rejects the switch if either count or snapshot timestamp changed during review. After switching, verify `/` and `/controller` agree, check the percentage, and confirm MATCH/GROW are unchanged. A subsequent manual +1 starts a new session.
+The gear in the Staff Controller header opens Settings. MATCH/GROW cards retain their existing controls, the expandable Check-ins Controller stays beneath them, and Action History remains below check-ins. Settings displays synchronization status, source, effective counts, last API counts, and fetch timestamps in **Asia/Amman** time.
 
-## Monitoring and escalation
+Production uses the existing single operator account, now approved as administrator. Sign in normally to use every controller feature; there is no role-management screen or additional account workflow. The backend retains its existing membership checks so these controls stay private.
 
-Watch for failed controller submissions and a raw API count that remains below or above the manually displayed count. In the current hosted frontend, the presentation does not show source freshness; check the stored timestamp and failure state through the operations data path. A pending local frontend correction adds compact "Snapshot" and "Stale" labels and shows unavailable GROW data without a false zero; these labels are not live until an approved frontend release. Browser reconnection triggers an authoritative `public-dashboard-data` refetch; the dashboard also polls every 15 seconds while mounted. If the public endpoint fails, retain the last displayed values as stale and compare them with the authenticated controller before acting. If the API returns a registration count below effective check-ins, publication fails and preserves the prior aggregate; investigate before retrying. Escalate any unexplained discrepancy to the owner. Do not change sync gates, deploy, alter targets, or delete audit rows during the event without the separate release and recovery approvals.
+## Start or stop B2Match synchronization
+
+1. In Settings, review the current state and last successful API counts. **Start Sync** is available only in API mode with verified scheduler configuration. It is disabled permanently after Manual Mode is activated for this session.
+2. Click **Start Sync** once. The server persists the session and fetches immediately; subsequent starts are due every 120 seconds, with up to 10 seconds of scheduler wake-up delay. The controller may be closed after the request is confirmed. It is not the scheduler.
+3. Watch Starting/Syncing become Running and confirm a new successful timestamp and appropriate MEET totals. A complete API pull uses the established registration and event-entrance rules. It never derives completed meetings or ratings from B2Match.
+4. To pause intentionally, click **Stop Sync** and wait for Stopped. Last valid values remain displayed. The database fences in-flight and delayed queued work, so old results cannot publish after stop. An administrator may explicitly start a new API session while still in API mode; there is no automatic restart.
+
+If Start Sync is unavailable, do not substitute browser timers or change secrets casually. Check the release record and ask the designated owner to inspect scheduler readiness. A safe retry of an uncertain operation uses **Retry pending operation**, preserving its request ID. Do not issue a different action until the pending result is resolved.
+
+## Any API failure
+
+A 429, authentication error, server/network error, timeout, malformed/incomplete response, or publication failure stops future synchronization. Settings shows Failed with a safe error and available HTTP status. The public display keeps its last valid counts and source/freshness indication; it never shows technical API details or converts failure to zero.
+
+Do not repeatedly retry the provider or deliberately trigger rate limits. Check the last attempt/success timestamps and the last trusted count. An admin may choose the confirmed one-way fallback below. There is no automatic recovery. A read-only operator inspection of safe logs is appropriate; token values, response bodies, and `pg_net` request headers must not be displayed or exported.
+
+## Activate Manual Mode
+
+1. If API synchronization is active, stop it first and wait for Stopped. Failed is already stopped.
+2. Compare the effective registered/check-in totals with the last trusted entrance count. In Settings choose **Activate Manual Mode**, review the permanent-transition confirmation, and confirm deliberately.
+3. Verify Manual Mode and manual fallback are shown. Start Sync is now unavailable for the rest of the operating session, including after refresh or another administrator signs in. API results cannot overwrite manual values. There is no return-to-API or reconciliation control.
+4. Close Settings and expand the existing Check-ins Controller. It updates the same effective MEET totals shown publicly.
+
+If counts are unknown, establish them with the designated owner before entering adjustments; do not assume zero. Registration can be corrected through the administrator override. The operator must avoid counting the same arrival twice.
+
+## Manual check-in workflow
+
+- Use **+1**, **+2**, **+5**, or **+10** for the number of newly verified check-ins missing from the displayed total. Each increment is stored atomically. Wait for saved confirmation; controls disable while processing.
+- If a response is uncertain, use the offered retry. It reuses the request ID and cannot duplicate a successful adjustment. Reload/refetch authoritative state if instructed; never assume a network error means nothing was saved.
+- An administrator can enter an exact checked-in total and select **Set exact total**. For example, entering 1,500 replaces the effective total with 1,500. It is not an increment. Empty, negative, decimal, over-capacity, and stale-version submissions are rejected. Refresh/review the latest value after a conflict before submitting again.
+- Check-ins cannot exceed registered participants. Correct registration first when the larger attendance figure is verified. A registration override cannot be below existing check-ins; correct check-ins first when appropriate.
+- Use Action History **Undo** for a specific eligible mistaken increment. Undo reverses that whole submission, including +5/+10. An exact correction establishes a new baseline; older increments cannot later subtract from it. Cleared/reset actions are not undoable. Review the saved history and public value after correction.
+
+If Supabase is unavailable, controller actions cannot persist. Keep a controlled offline entrance log and involve the owner when service returns. Use reviewed exact totals after reconnecting rather than replaying uncertain taps blindly. No client-only counter is authoritative.
+
+## Registration override and meeting target
+
+An administrator edits **Registered participants override** and/or **MATCH target meetings** in Settings, then selects **Save dashboard settings**. Review current values before saving. Counts must be nonnegative integers; the target must be positive. The registration override remains separate from the last API count and stays authoritative during subsequent API publications and Manual Mode. If API attendance exceeds that override, synchronization fails safely; review the correction before a new API session.
+
+Changing MATCH target recalculates progress without altering completed meetings, meeting records, or ratings. A concurrent version conflict requires refresh and review. After saving, compare the controller with the public dashboard; Realtime refetch and the 15-second fallback should propagate changes. Do not edit database aggregates directly as a shortcut.
+
+## Critical pre-event reset — owner/admin only
+
+Use this only when the owner decides to clear MATCH/MEET testing data. It is never automatic. Preserve a reviewed baseline/recovery record first. In Settings open **Reset MATCH & MEET Totals**, read the warning, and type **RESET EVENT** exactly. Opening the dialog does nothing; the separate confirmation executes one backend transaction.
+
+> This will reset MATCH completed meetings and MEET registration/check-in totals to zero. This action cannot be undone through the controller.
+
+The reset preserves GROW ratings, MATCH target, event configuration, accounts, unrelated events, historical records, and audit logs. It stops/fences API work, clears active registration overrides, marks prior meeting/check-in actions cleared, and prevents old snapshots from automatically repopulating totals. Manual Mode, if already activated, remains permanent. The reset itself cannot be undone through the controller.
+
+After an owner-executed reset, verify MATCH completed, MEET registered, and MEET checked-in are exactly zero on controller and public display; GROW and target must match the recorded baseline. Confirm a reset entry in Action History and Stopped or Manual Mode state. Do not use old Undo buttons to restore testing data. The administrator must intentionally establish the event's registration/attendance source afterward; historical snapshots are not republished automatically.
+
+## Monitoring, reconnect, and escalation
+
+The public dashboard reads persisted aggregate values, subscribes to `dashboard_aggregates`, refetches on successful subscription/reconnection, and retains the 15-second fallback. A browser refresh never starts B2Match synchronization. If the public endpoint is unavailable, preserve the last display, inspect connection/freshness, and compare authoritative values after reconnect. If updates do not appear within the fallback window, inspect safe network/status information and escalate; do not repeatedly submit the same change using new IDs.
+
+Confirm MATCH and GROW remain normal during attendance operations. Escalate unexplained counter differences, unauthorized access, failed persistence, scheduler failures, and suspected credential exposure to the designated owner. Do not delete records, rotate broad keys, alter Auth, or deploy ad hoc infrastructure during the event. Follow the reviewed release/rollback path and preserve audit evidence. Recovery from a failed release is a reviewed artifact rollback or forward repair, not a database reset.
+
+## Scheduler details for maintainers
+
+The fixed-event `pg_cron` job calls the guarded database tick every 10 seconds; idle Stopped/Failed/Manual states dispatch no API requests. The dispatcher uses Vault `nh_b2match_worker_secret`; the Edge worker checks matching `B2MATCH_WORKER_SECRET` on `x-b2match-worker-secret`. Never print either secret or inspect/export resolved request headers. Dispatch generation, a single lease, due-time checks, and publication fencing prevent overlap and stale publication. The watchdog stops on enqueue/request/lease failures; Cron enqueue success alone does not prove an API fetch succeeded. Use Settings, safe response metadata, sync run state, and aggregate freshness together.
 
 ## Startup map after the pending redesign release
 

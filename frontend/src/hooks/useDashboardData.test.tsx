@@ -14,6 +14,20 @@ const response = (completedMeetings: number, meet: unknown = null) => parseLiveD
 afterEach(() => vi.useRealTimers());
 
 describe("public live dashboard refresh", () => {
+  it("refetches after Realtime subscription or change and removes the subscription", async () => {
+    let notify: (() => void) | undefined;
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn((refresh: () => void) => { notify = refresh; return unsubscribe; });
+    const load = vi.fn(async () => response(5));
+    const { unmount } = renderHook(() => useDashboardData({ mode: "live", load, subscribe }));
+    await act(async () => { await Promise.resolve(); });
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    await act(async () => { notify?.(); await Promise.resolve(); });
+    expect(load).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps one polling interval per mount and cleans it up in Strict Mode", async () => {
     vi.useFakeTimers();
     const load = vi.fn(async () => response(1));

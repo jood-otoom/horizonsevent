@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ControllerService } from "../services/controllerService";
+import { ControllerConflictError } from "../services/controllerService";
 import { mockControllerService } from "../services/mockControllerProvider";
 import { liveControllerService } from "../services/liveControllerService";
 import { dataMode } from "../lib/supabaseClient";
-import type { CheckinStatus, ControllerAction, ControllerStats, Rating, ReconcileCheckinsRequest, UndoRequest } from "../types/controller";
+import type { CheckinStatus, ControllerAction, ControllerStats, Rating, CheckinQuantity, UndoRequest } from "../types/controller";
 
 type StatsState =
   | { status: "loading"; stats: null }
@@ -20,24 +21,20 @@ export function useControllerData(service: ControllerService = dataMode === "liv
   const [feedbackState, setFeedbackState] = useState<SubmissionState>("idle");
   const [undoState, setUndoState] = useState<SubmissionState>("idle");
   const [checkinState, setCheckinState] = useState<SubmissionState>("idle");
-  const [reconcileState, setReconcileState] = useState<SubmissionState>("idle");
   const [checkins, setCheckins] = useState<{ status: "loading" | "error" | "ready"; data: CheckinStatus | null }>({ status: "loading", data: null });
   const [historyState, setHistoryState] = useState<HistoryState>({ status: "loading", actions: [] });
   const [meetingMessage, setMeetingMessage] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [undoMessage, setUndoMessage] = useState("");
   const [checkinMessage, setCheckinMessage] = useState("");
-  const [reconcileMessage, setReconcileMessage] = useState("");
   const meetingRequest = useRef<{ requestId: string; quantity: 1 | 2 | 3 } | null>(null);
   const feedbackRequest = useRef<{ requestId: string; rating: Rating } | null>(null);
   const undoRequest = useRef<UndoRequest | null>(null);
-  const checkinRequest = useRef<{ requestId: string } | null>(null);
-  const reconcileRequest = useRef<ReconcileCheckinsRequest | null>(null);
+  const checkinRequest = useRef<{ requestId: string; quantity?: CheckinQuantity; checkedIn?: number; expectedVersion?: number } | null>(null);
   const meetingPending = useRef(false);
   const feedbackPending = useRef(false);
   const undoPending = useRef(false);
   const checkinPending = useRef(false);
-  const reconcilePending = useRef(false);
   const historyRead = useRef(0);
   const checkinRead = useRef(0);
 
@@ -143,10 +140,11 @@ export function useControllerData(service: ControllerService = dataMode === "liv
     }
   }
 
-  async function submitCheckin() {
-    if (checkinPending.current || reconcilePending.current || checkins.status !== "ready" || !checkins.data) return;
+  async function submitCheckin(quantity: CheckinQuantity = 1) {
+    if (checkinPending.current || checkins.status !== "ready" || !checkins.data || checkins.data.mode !== "manual") return;
+    if (checkinRequest.current && checkinRequest.current.quantity !== quantity) return;
     checkinPending.current = true;
-    checkinRequest.current ??= { requestId: crypto.randomUUID() };
+    checkinRequest.current ??= { requestId: crypto.randomUUID(), quantity };
     setCheckinState("pending");
     setCheckinMessage("");
     try {
@@ -157,37 +155,56 @@ export function useControllerData(service: ControllerService = dataMode === "liv
       setCheckinState("success");
       setCheckinMessage(`Check-in saved. Total: ${response.checkins.checkedIn}.`);
       void loadActions();
-    } catch {
+    } catch (error) {
+      if (error instanceof ControllerConflictError) checkinRequest.current = null;
       setCheckinState("error");
-      setCheckinMessage("Check-in was not confirmed. Retry with the same submission ID.");
+      setCheckinMessage(error instanceof ControllerConflictError ? error.message : "Check-in was not confirmed. Retry with the same submission ID.");
     } finally {
       checkinPending.current = false;
     }
   }
 
-  async function reconcileCheckins() {
+  async function setExactCheckins(checkedIn: number) {
     const current = checkins.data;
-    if (reconcilePending.current || checkinPending.current || checkins.status !== "ready" || !current?.canReconcile ||
-        current.checkedIn === null || current.apiCheckedIn === null || current.apiAsOf === null) return;
-    reconcilePending.current = true;
-    reconcileRequest.current ??= { requestId: crypto.randomUUID(), expectedManual: current.checkedIn,
-      expectedApi: current.apiCheckedIn, expectedApiAt: current.apiAsOf };
-    setReconcileState("pending");
-    setReconcileMessage("");
+    if (checkinPending.current || checkins.status !== "ready" || !current || current.mode !== "manual" ||
+        current.version === undefined || !current.canSetExact) return;
+    if (checkinRequest.current && checkinRequest.current.checkedIn !== checkedIn) return;
+    checkinPending.current = true;
+    checkinRequest.current ??= { requestId: crypto.randomUUID(), checkedIn, expectedVersion: current.version };
+    setCheckinState("pending");
+    setCheckinMessage("");
     try {
-      const response = await service.reconcileCheckins(reconcileRequest.current);
+      const request = checkinRequest.current;
+      const response = await service.setCheckins({ requestId: request.requestId,
+        checkedIn: request.checkedIn!, expectedVersion: request.expectedVersion! });
       ++checkinRead.current;
       setCheckins({ status: "ready", data: response.checkins });
-      reconcileRequest.current = null;
-      setReconcileState("success");
-      setReconcileMessage(`Verified API count is now displayed: ${response.checkins.checkedIn}.`);
+      checkinRequest.current = null;
+      setCheckinState("success");
+      setCheckinMessage(`Exact check-in total saved: ${response.checkins.checkedIn}.`);
       void loadActions();
-    } catch {
-      setReconcileState("error");
-      setReconcileMessage("Source change was not confirmed. Refresh status or retry safely.");
+    } catch (error) {
+      if (error instanceof ControllerConflictError) checkinRequest.current = null;
+      setCheckinState("error");
+      setCheckinMessage(error instanceof Error ? error.message : "Exact total was not confirmed. Retry safely.");
     } finally {
-      reconcilePending.current = false;
+      checkinPending.current = false;
     }
+  }
+
+  async function refreshCheckins() {
+    if (checkinPending.current) return;
+    await loadCheckins();
+  }
+
+  function refreshAfterSettings() {
+    if (meetingState === "success") { setMeetingState("idle"); setMeetingMessage(""); }
+    if (feedbackState === "success") { setFeedbackState("idle"); setFeedbackMessage(""); }
+    if (checkinState === "success") { setCheckinState("idle"); setCheckinMessage(""); }
+    if (undoState === "success") { setUndoState("idle"); setUndoMessage(""); }
+    void loadStats();
+    void loadActions();
+    void loadCheckins();
   }
 
   async function undoAction(originalRequestId: string): Promise<boolean> {
@@ -235,7 +252,6 @@ export function useControllerData(service: ControllerService = dataMode === "liv
     feedbackState,
     undoState,
     checkinState,
-    reconcileState,
     checkins,
     historyState,
     meetingMessage,
@@ -244,15 +260,17 @@ export function useControllerData(service: ControllerService = dataMode === "liv
     feedbackMessage,
     undoMessage,
     checkinMessage,
-    reconcileMessage,
+    checkinRetry: checkinState === "error" ? checkinRequest.current : null,
     undoRetryOriginalRequestId: undoState === "error" ? undoRequest.current?.originalRequestId : undefined,
     loadStats,
     loadActions,
     loadCheckins,
+    refreshCheckins,
+    refreshAfterSettings,
     submitMeeting,
     submitFeedback,
     submitCheckin,
-    reconcileCheckins,
+    setExactCheckins,
     undoAction,
   };
 }

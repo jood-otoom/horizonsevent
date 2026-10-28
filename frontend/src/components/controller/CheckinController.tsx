@@ -1,24 +1,25 @@
 import { useState } from "react";
-import type { CheckinStatus } from "../../types/controller";
+import type { CheckinQuantity, CheckinStatus } from "../../types/controller";
 
 interface CheckinControllerProps {
   status: { status: "loading" | "error" | "ready"; data: CheckinStatus | null };
   state: "idle" | "pending" | "success" | "error";
   message: string;
-  reconcileState: "idle" | "pending" | "success" | "error";
-  reconcileMessage: string;
-  onSubmit: () => void;
-  onReconcile: () => void;
+  retry: { quantity?: CheckinQuantity; checkedIn?: number } | null;
+  onSubmit: (quantity: CheckinQuantity) => void;
+  onSetExact: (checkedIn: number) => void;
   onRefresh: () => void;
   onHide: () => void;
 }
 
-export default function CheckinController({ status, state, message, reconcileState,
-  reconcileMessage, onSubmit, onReconcile, onRefresh, onHide }: CheckinControllerProps) {
-  const [reviewing, setReviewing] = useState(false);
+export default function CheckinController({ status, state, message, retry,
+  onSubmit, onSetExact, onRefresh, onHide }: CheckinControllerProps) {
+  const [exact, setExact] = useState("");
   const data = status.data;
-  const atCapacity = data?.registered !== null && data?.checkedIn !== null &&
-    data?.registered === data?.checkedIn;
+  const pending = state === "pending";
+  const manual = data?.mode === "manual";
+  const validExact = /^\d+$/.test(exact) && Number.isSafeInteger(Number(exact)) &&
+    data?.registered !== null && Number(exact) <= Number(data?.registered);
 
   return (
     <section className="controller-card controller-checkin" aria-labelledby="checkin-heading">
@@ -31,22 +32,35 @@ export default function CheckinController({ status, state, message, reconcileSta
       {status.status === "ready" && data && <>
         <p className="controller-checkin-total">Checked in <strong>{data.checkedIn?.toLocaleString() ?? "—"}</strong>
           <span>of {data.registered?.toLocaleString() ?? "—"} registered</span></p>
-        <button className="controller-action controller-checkin-submit" type="button"
-          disabled={state === "pending" || reconcileState === "pending" || data.checkedIn === null || atCapacity}
-          onClick={onSubmit}>{state === "pending" ? "Saving…" : state === "error" ? "Retry +1 check-in" : "+1 Check-in"}</button>
+        <p className="controller-checkin-source">Source: {data.source ?? data.mode}. Manual fallback: {manual ? "active" : "inactive"}.</p>
+        {!manual && <p>Activate Manual Mode in Settings before entering check-ins. An event administrator must confirm this permanent switch.</p>}
+        <div className="controller-checkin-actions">
+          {([1, 2, 5, 10] as const).map(quantity => (
+            <button className="controller-action" type="button" key={quantity}
+              disabled={pending || !manual || data.checkedIn === null || data.registered === null ||
+                data.checkedIn + quantity > data.registered || !!retry && retry.quantity !== quantity}
+              onClick={() => onSubmit(quantity)}>
+              {pending && retry?.quantity === quantity ? "Saving…" : `+${quantity} Check-in${quantity === 1 ? "" : "s"}`}
+            </button>
+          ))}
+        </div>
+        {pending && <p role="status">Saving check-ins…</p>}
+        {data.canSetExact && <form className="controller-exact-form" onSubmit={event => {
+          event.preventDefault();
+          if (validExact && !pending) onSetExact(Number(exact));
+        }}>
+          <label htmlFor="exact-checkins">Exact checked-in total</label>
+          <input id="exact-checkins" type="number" inputMode="numeric" min="0" step="1"
+            max={data.registered ?? undefined} value={exact}
+            disabled={pending || !manual || !!retry} onChange={event => setExact(event.target.value)} />
+          <button className="controller-secondary-action" type="submit"
+            disabled={pending || !manual || !validExact || !!retry && retry.checkedIn !== Number(exact)}>
+            {retry?.checkedIn !== undefined ? "Retry exact total" : "Set exact total"}
+          </button>
+          <small>Replaces the total. If another operator changes it, refresh and review before submitting again.</small>
+        </form>}
         <p className={`controller-message controller-message-${state}`} role="status" aria-live="polite">{message}</p>
-        {data.mode === "manual" && <p className="controller-checkin-source">Manual count is displayed. New API measurements stay separate until reviewed.</p>}
-        {data.canReconcile && <div className="controller-reconciliation">
-          <p>API now reports <strong>{data.apiCheckedIn}</strong>; display shows <strong>{data.checkedIn}</strong>. Verify the API count in b2match before switching.</p>
-          {reviewing ? <div className="controller-correction-actions">
-            <button className="controller-action" type="button" disabled={state === "pending" || reconcileState === "pending"}
-              onClick={() => { onReconcile(); setReviewing(false); }}>
-              {reconcileState === "pending" ? "Switching…" : "Confirm verified API count"}</button>
-            <button className="controller-secondary-action" type="button" onClick={() => setReviewing(false)}>Cancel</button>
-          </div> : <button className="controller-secondary-action" type="button" disabled={state === "pending"}
-            onClick={() => setReviewing(true)}>Review API count</button>}
-        </div>}
-        <p className={`controller-message controller-message-${reconcileState}`} role="status" aria-live="polite">{reconcileMessage}</p>
+        <button className="controller-secondary-action" type="button" disabled={pending} onClick={onRefresh}>Refresh latest totals</button>
       </>}
     </section>
   );
