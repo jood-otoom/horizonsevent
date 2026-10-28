@@ -115,7 +115,8 @@ export default function ControllerSettings({ open, service, onClose, onSaved }: 
       request.current = null;
       setReview(null); setConfirmation("");
       setMessage(completed === "stop_sync" ? "Sync stopped. Last fetched totals are preserved." :
-        completed === "start_sync" ? "Sync started. Fetching now, then every two minutes." : "Saved. The dashboard is updating.");
+        completed === "start_sync" ? "Sync started. Fetching now, then every two minutes." :
+          completed === "reset_event" ? "MATCH and GROW totals reset. MEET attendance is unchanged." : "Saved. The dashboard is updating.");
       onSaved();
     } catch (cause) {
       if (cause instanceof ControllerConflictError) request.current = null;
@@ -234,16 +235,16 @@ export default function ControllerSettings({ open, service, onClose, onSaved }: 
           </form>
         </section>
         <section id="settings-panel-reset" hidden={section !== "reset"} className="controller-settings-section controller-danger" aria-labelledby="settings-danger">
-          <h3 id="settings-danger">Reset event totals</h3>
+          <h3 id="settings-danger">Reset MATCH &amp; GROW totals</h3>
           <p>Clear testing totals before the event.</p>
-          <ul><li>MATCH completed meetings → 0</li><li>MEET registered and checked-in participants → 0</li></ul>
-          <p className="controller-settings-note">GROW ratings, the meeting target and audit history are preserved. Synchronization stops. A separate confirmation is required.</p>
-          <button type="button" className="controller-secondary-action" disabled={!admin || locked} onClick={() => { setReview("reset"); setConfirmation(""); }}>Reset MATCH &amp; MEET Totals</button>
+          <ul><li>MATCH completed meetings → 0</li><li>GROW rating count and average → cleared</li></ul>
+          <p className="controller-settings-note">MEET registration/check-in totals, synchronization, manual mode, the meeting target and audit history are preserved. A separate confirmation is required.</p>
+          <button type="button" className="controller-secondary-action" disabled={!admin || locked} onClick={() => { setReview("reset"); setConfirmation(""); }}>Reset MATCH &amp; GROW Totals</button>
           {review === "reset" && <dialog ref={resetDialog} className="controller-settings-modal controller-reset-modal"
             aria-labelledby="reset-title" aria-describedby="reset-warning"
             onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!locked) setReview(null); }}>
             <h3 id="reset-title">Confirm event reset</h3>
-            <p id="reset-warning">This will reset MATCH completed meetings and MEET registration/check-in totals to zero. This action cannot be undone through the controller.</p>
+            <p id="reset-warning">This will reset MATCH completed meetings and GROW ratings to zero. MEET registration/check-in totals will remain unchanged. This action cannot be undone through the controller.</p>
             {error && <p className="controller-message-error" role="alert">{error}</p>}
             {pending && <p role="status">Saving operation…</p>}
             {!pending && request.current && <button type="button" className="controller-secondary-action" onClick={() => { void run(); }}>Retry pending operation</button>}
@@ -251,7 +252,7 @@ export default function ControllerSettings({ open, service, onClose, onSaved }: 
             <input id="reset-confirmation" value={confirmation} autoComplete="off" disabled={locked} onChange={event => setConfirmation(event.target.value)} />
             <div className="controller-settings-actions">
               <button type="button" className="controller-action" disabled={locked || confirmation !== "RESET EVENT"}
-                onClick={() => { void run({ kind: "reset_event", confirmation: "RESET EVENT" }); }}>Confirm reset</button>
+                onClick={() => { void run({ kind: "reset_event", scope: "match_grow", confirmation: "RESET EVENT" }); }}>Confirm reset</button>
               <button type="button" className="controller-secondary-action" disabled={locked} onClick={() => setReview(null)}>Cancel</button>
             </div>
           </dialog>}

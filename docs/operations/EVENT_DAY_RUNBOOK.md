@@ -54,7 +54,7 @@ If counts are unknown, establish them with the designated owner before entering 
 - If a response is uncertain, use the offered retry. It reuses the request ID and cannot duplicate a successful adjustment. Reload/refetch authoritative state if instructed; never assume a network error means nothing was saved.
 - An administrator can enter an exact checked-in total and select **Set exact total**. For example, entering 1,500 replaces the effective total with 1,500. It is not an increment. Empty, negative, decimal, over-capacity, and stale-version submissions are rejected. Refresh/review the latest value after a conflict before submitting again.
 - Check-ins cannot exceed registered participants. Correct registration first when the larger attendance figure is verified. A registration override cannot be below existing check-ins; correct check-ins first when appropriate.
-- Use Action History **Undo** for a specific eligible mistaken increment. Undo reverses that whole submission, including +5/+10. An exact correction establishes a new baseline; older increments cannot later subtract from it. Cleared/reset actions are not undoable. Review the saved history and public value after correction.
+- Use Action History **Undo** for a specific eligible mistaken increment. Undo reverses that whole submission, including +5/+10. An exact correction establishes a new baseline; older increments cannot later subtract from it. Cleared meeting/feedback actions are not undoable; the MATCH/GROW reset leaves check-in actions and their existing Undo eligibility unchanged. Review the saved history and public value after correction.
 
 If Supabase is unavailable, controller actions cannot persist. Keep a controlled offline entrance log and involve the owner when service returns. Use reviewed exact totals after reconnecting rather than replaying uncertain taps blindly. No client-only counter is authoritative.
 
@@ -66,13 +66,17 @@ Changing MATCH target recalculates progress without altering completed meetings,
 
 ## Critical pre-event reset — owner/admin only
 
-Use this only when the owner decides to clear MATCH/MEET testing data. It is never automatic. Preserve a reviewed baseline/recovery record first. In Settings select **Reset totals**, open **Reset MATCH & MEET Totals**, read the warning, and type **RESET EVENT** exactly. Opening the section or dialog does nothing; the separate confirmation executes one backend transaction. Never confirm the live reset as part of deployment, testing, or recovery from a pending-request message.
+Use this only when the owner decides to clear MATCH/GROW testing data. It is never automatic. Preserve a reviewed baseline/recovery record first. In Settings select **Reset totals**, open **Reset MATCH & GROW Totals**, read the warning, and type **RESET EVENT** exactly. Opening the section or dialog does nothing; the separate confirmation executes one backend transaction. Never confirm the live reset as part of deployment, testing, or recovery from a pending-request message.
 
-> This will reset MATCH completed meetings and MEET registration/check-in totals to zero. This action cannot be undone through the controller.
+> This will reset MATCH completed meetings and GROW ratings to zero. MEET registration/check-in totals will remain unchanged. This action cannot be undone through the controller.
 
-The reset preserves GROW ratings, MATCH target, event configuration, accounts, unrelated events, historical records, and audit logs. It stops/fences API work, clears active registration overrides, marks prior meeting/check-in actions cleared, and prevents old snapshots from automatically repopulating totals. Manual Mode, if already activated, remains permanent. The reset itself cannot be undone through the controller.
+The reset sets completed meetings, feedback count, and rating sum to zero. GROW returns to its empty state with a **null average**, not a zero-star rating. Historical meeting/feedback records and audit remain retained, but their cleared contributions cannot return through old Undo or retried submissions. The MATCH target, event configuration, accounts, and unrelated events remain unchanged.
 
-After an owner-executed reset, verify MATCH completed, MEET registered, and MEET checked-in are exactly zero on controller and public display; GROW and target must match the recorded baseline. Confirm a reset entry in Action History and Stopped or Manual Mode state. Do not use old Undo buttons to restore testing data. The administrator must intentionally establish the event's registration/attendance source afterward; historical snapshots are not republished automatically.
+MEET registered/check-in counts and check-in rate, registration override, source/mode, manual session, API enabled/state and timestamps, snapshots, and check-in history/Undo are preserved. The operation does not start or stop API synchronization: whatever state was present before reset remains in effect. A reset is therefore not a substitute for **Stop Sync** or a manual-mode transition.
+
+After an owner-executed reset, verify MATCH completed meetings and GROW feedback count are exactly zero on the controller and public display, and confirm the backend rating sum is zero with a null derived average. Compare MEET totals/rate, source/override/manual state, API state/timestamps, and target with the recorded baseline; any unrelated concurrent attendance update must be assessed separately rather than attributed to reset. Confirm the reset entry in Action History, retained meeting/feedback audit, and unchanged check-in Undo behavior. New meeting/rating submissions can then be recorded normally.
+
+The controller sends the explicit reset scope `match_grow`. Older cached-client requests without that scope are rejected; reload the current controller rather than resubmitting an obsolete request or editing requests manually. Deployment evidence is recorded separately; changing this guidance does not establish that a new reset has been run.
 
 ## Monitoring, reconnect, and escalation
 

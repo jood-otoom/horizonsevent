@@ -1,5 +1,11 @@
 # Test strategy
 
+## October 29 reset scope correction
+
+The owner corrected the critical operation to MATCH + GROW. Current tests supersede the former MATCH/MEET reset assertions below. Reset requests require `scope:"match_grow"` plus the unchanged typed `RESET EVENT` confirmation. Isolated PostgreSQL tests verify zero meetings/feedback count/rating sum, preserved complete attendance aggregate fields/timestamps, unchanged MEET control fields except version+1, retained historical records, rejected cached/wrong scopes and old Undo, inert old request replays, preserved check-in Undo and target/override, correct new post-reset average, and duplicate reset replay preserving new submissions. The scheduler fixture also resets during an in-flight synthetic API run and verifies its lease/state survive and complete normally.
+
+Frontend tests cover the revised warning/button/history, empty rating average, unchanged attendance/API/manual state, exact scope, duplicate/replay safety and typed/pending guards. No live reset is allowed for this test. The full workspace checks passed136 frontend and65 backend tests, TypeScript, ESLint, production build, cached/frozen Deno controller check, both isolated SQL suites and diff validation. After the neutral history-label refinement,34 controller/component tests and the build passed again. Backend deployment and unchanged production row hashes are recorded in the deployment guide.
+
 ## October 29 sync/Reset control repair
 
 The real deployed admin response is `{record,settings}`. Service regressions pass that exact shape for Start, Stop and Reset without invented check-in data; malformed settings or missing receipts still fail validation. The installed Supabase Functions SDK is exercised with mocked fetch and fake timers: a Settings request remains pending at 14,999ms, aborts at 15,000ms, clears its timer, and issues no extra mutation. Other controller calls retain their existing timeout behavior.

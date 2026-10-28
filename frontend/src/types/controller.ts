@@ -54,7 +54,7 @@ export interface ControllerSettings {
 export type SettingsAction =
   | { kind: "start_sync" | "stop_sync" | "manual_mode" }
   | { kind: "update_settings"; registeredOverride?: number; meetingTarget?: number }
-  | { kind: "reset_event"; confirmation: "RESET EVENT" };
+  | { kind: "reset_event"; scope: "match_grow"; confirmation: "RESET EVENT" };
 
 export type SettingsRequest = SettingsAction & { requestId: string; expectedVersion: number };
 

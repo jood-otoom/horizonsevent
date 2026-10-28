@@ -20,7 +20,7 @@ end;$$;
 insert into vault.decrypted_secrets(name,decrypted_secret) values('nh_b2match_worker_secret','synthetic-secret-never-valid-for-production');
 update public.dashboard_aggregates set registered=100,checked_in=10,check_in_rate=10,last_successful_sync=clock_timestamp() where event_id=17135;
 do $$
-declare a uuid:='00000000-0000-4000-8000-000000017135'; v bigint; run_id uuid; tok uuid; n integer; dispatch bigint;
+declare a uuid:='00000000-0000-4000-8000-000000017135'; v bigint; run_id uuid; tok uuid; n integer; dispatch bigint; before_control jsonb;
 begin
   if not(public.get_event_control(17135,a)->>'canStart')::boolean then raise exception 'ready_start_disabled'; end if;
   if has_function_privilege('anon','event_private.dispatch_meet_sync()','EXECUTE') or
@@ -34,6 +34,16 @@ begin
   if(select count(*) from net.readiness_mock_requests)<>1 then raise exception 'duplicate_dispatch'; end if;
   run_id:=gen_random_uuid();tok:=gen_random_uuid();
   if not public.claim_meet_sync(17135,run_id,tok) then raise exception 'claim_failed'; end if;
+  -- Resetting staff metrics must not cancel or alter an in-flight attendance sync.
+  perform public.record_meetings(17135,gen_random_uuid(),a,1::smallint);
+  perform public.record_feedback(17135,gen_random_uuid(),a,4::smallint);
+  select version,to_jsonb(c)-'version' into v,before_control from public.meet_checkin_control c where event_id=17135;
+  perform public.admin_event_operation(17135,gen_random_uuid(),a,'reset_event',v,'{"confirmation":"RESET EVENT","scope":"match_grow"}');
+  if (select to_jsonb(c)-'version' from public.meet_checkin_control c where event_id=17135) is distinct from before_control or
+    (select count(*) from public.sync_leases where event_id=17135)<>1 or
+    (select status from public.sync_runs where id=run_id)<>'running' or
+    exists(select 1 from public.dashboard_aggregates where event_id=17135 and
+      (registered<>100 or checked_in<>10 or completed_meetings<>0 or feedback_count<>0 or rating_sum<>0)) then raise exception 'reset_interfered_with_api_mode'; end if;
   perform event_private.tick_meet_sync();
   if(select count(*) from net.readiness_mock_requests)<>1 then raise exception 'running_overlap'; end if;
   if not public.complete_meet_sync(run_id,tok,100,15,2,100) then raise exception 'complete_failed'; end if;

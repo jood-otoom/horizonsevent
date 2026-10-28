@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMockControllerService } from "./mockControllerProvider";
+import type { SettingsRequest } from "../types/controller";
 
 describe("mock controller provider", () => {
   it("starts empty and calculates averages from individual ratings", async () => {
@@ -134,15 +135,70 @@ describe("mock controller provider", () => {
     expect((await service.getRecentActions()).find(action => action.requestId === "exact")?.undoEligible).toBe(false);
   });
 
-  it("preserves feedback and target during a confirmed synthetic MATCH/MEET reset", async () => {
+  it("clears MATCH/GROW while preserving MEET, overrides, target and manual check-in Undo", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 20 });
+    await service.submitMeeting({ requestId: "meeting", quantity: 3 });
+    await service.submitFeedback({ requestId: "rating", rating: 4 });
+    await service.submitCheckin({ requestId: "checkin", quantity: 5 });
+    const initial = await service.getSettings();
+    await service.updateSettings({ kind: "update_settings", requestId: "override", expectedVersion: initial.version,
+      registeredOverride: 25, meetingTarget: 1500 });
+    const settings = await service.getSettings();
+    const checkins = await service.getCheckins();
+    const reset: SettingsRequest = { kind: "reset_event", scope: "match_grow", requestId: "reset",
+      expectedVersion: settings.version, confirmation: "RESET EVENT" };
+    await service.updateSettings(reset);
+    expect(await service.getStats()).toMatchObject({ completedMeetings: 0, feedbackCount: 0, averageRating: null });
+    expect(await service.getSettings()).toEqual({ ...settings, version: settings.version + 1 });
+    expect(await service.getCheckins()).toEqual({ ...checkins, version: settings.version + 1 });
+    expect((await service.getRecentActions()).some(action => action.operation === "reset_event")).toBe(true);
+    const history = await service.getRecentActions();
+    expect(history.filter(action => action.kind === "meeting" || action.kind === "feedback")
+      .every(action => action.undoEligible === false)).toBe(true);
+    expect(history.find(action => action.requestId === "checkin")?.undoEligible).toBe(true);
+    await expect(service.undoAction({ requestId: "old-meeting-undo", originalRequestId: "meeting", reason: "wrong_count" }))
+      .rejects.toThrow("This action cannot be undone.");
+    await expect(service.undoAction({ requestId: "old-rating-undo", originalRequestId: "rating", reason: "wrong_rating" }))
+      .rejects.toThrow("This action cannot be undone.");
+
+    expect((await service.submitMeeting({ requestId: "meeting", quantity: 3 })).stats.completedMeetings).toBe(0);
+    expect((await service.submitFeedback({ requestId: "rating", rating: 4 })).stats.feedbackCount).toBe(0);
+    expect((await service.submitMeeting({ requestId: "new-meeting", quantity: 2 })).stats.completedMeetings).toBe(2);
+    expect((await service.submitFeedback({ requestId: "new-rating", rating: 5 })).stats)
+      .toMatchObject({ feedbackCount: 1, averageRating: 5 });
+    await service.updateSettings(reset);
+    expect(await service.getStats()).toMatchObject({ completedMeetings: 2, feedbackCount: 1, averageRating: 5 });
+    await service.undoAction({ requestId: "checkin-undo", originalRequestId: "checkin", reason: "wrong_count" });
+    expect((await service.getCheckins()).checkedIn).toBe(4);
+    await service.undoAction({ requestId: "new-rating-undo", originalRequestId: "new-rating", reason: "wrong_rating" });
+    expect(await service.getStats()).toMatchObject({ completedMeetings: 2, feedbackCount: 0, averageRating: null });
+  });
+
+  it("preserves running API settings and all MEET fields during MATCH/GROW reset", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialMode: "api", initialCheckins: 4, registered: 20 });
+    await service.updateSettings({ kind: "start_sync", requestId: "start", expectedVersion: 0 });
+    const settings = await service.getSettings();
+    const checkins = await service.getCheckins();
+    await service.updateSettings({ kind: "reset_event", scope: "match_grow", requestId: "reset",
+      expectedVersion: settings.version, confirmation: "RESET EVENT" });
+    expect(await service.getSettings()).toEqual({ ...settings, version: settings.version + 1 });
+    expect(await service.getCheckins()).toEqual({ ...checkins, version: settings.version + 1 });
+  });
+
+  it("rejects cached reset requests with missing or obsolete scope without any changes", async () => {
     const service = createMockControllerService({ delayMs: 0 });
     await service.submitMeeting({ requestId: "meeting", quantity: 3 });
     await service.submitFeedback({ requestId: "rating", rating: 4 });
+    const stats = await service.getStats();
     const settings = await service.getSettings();
-    await service.updateSettings({ kind: "reset_event", requestId: "reset", expectedVersion: settings.version, confirmation: "RESET EVENT" });
-    expect(await service.getStats()).toMatchObject({ completedMeetings: 0, feedbackCount: 1, averageRating: 4 });
-    expect(await service.getSettings()).toMatchObject({ registered: 0, checkedIn: 0, meetingTarget: 1200 });
-    expect((await service.getRecentActions()).some(action => action.operation === "reset_event")).toBe(true);
+    for (const scope of [undefined, "match_meet"]) {
+      const cached = { kind: "reset_event", requestId: "cached-reset", scope,
+        expectedVersion: settings.version, confirmation: "RESET EVENT" } as unknown as SettingsRequest;
+      await expect(service.updateSettings(cached)).rejects.toThrow("reset scope and confirmation required.");
+    }
+    expect(await service.getStats()).toEqual(stats);
+    expect(await service.getSettings()).toEqual(settings);
+    expect((await service.getRecentActions()).some(action => action.operation === "reset_event")).toBe(false);
   });
 
   it("serializes distinct synthetic check-in requests without losing either increment", async () => {

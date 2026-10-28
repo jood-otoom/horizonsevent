@@ -162,6 +162,9 @@ export function createMockControllerService(options: MockOptions = {}): Controll
     async updateSettings(request) {
       assertAdmin();
       assertRequestId(request.requestId);
+      if (request.kind === "reset_event" && (request.scope !== "match_grow" || request.confirmation !== "RESET EVENT")) {
+        throw new Error("MATCH/GROW reset scope and confirmation required.");
+      }
       await wait();
       const prior = settingsRequests.get(request.requestId);
       if (prior && JSON.stringify(prior) !== JSON.stringify(request)) throw new Error("Request conflict.");
@@ -183,15 +186,15 @@ export function createMockControllerService(options: MockOptions = {}): Controll
             meetingTarget = request.meetingTarget;
           }
         } else if (request.kind === "reset_event") {
-          if (request.confirmation !== "RESET EVENT") throw new Error("Confirmation required.");
           meetings.splice(0);
-          actions.filter(action => action.kind === "meeting" || action.kind === "checkin").forEach(action => { action.undoEligible = false; });
-          registered = 0; checkedIn = 0; registeredOverride = null; syncState = "stopped";
+          feedback.splice(0);
+          actions.filter(action => action.kind === "meeting" || action.kind === "feedback").forEach(action => { action.undoEligible = false; });
         }
         version++;
         settingsRequests.set(request.requestId, request);
         auditEvents.push({ requestId: request.requestId, kind: "settings",
           operation: request.kind === "manual_mode" ? "activate_manual" : request.kind,
+          ...(request.kind === "reset_event" ? { label: "Reset MATCH & GROW totals" } : {}),
           quantity: null, rating: null, createdAt: new Date().toISOString(), reversedAt: null, undoEligible: false });
       }
       return { settings: settings(), checkins: checkins(), record: { id: request.requestId, createdAt: new Date().toISOString() } };
@@ -252,6 +255,7 @@ export function createMockControllerService(options: MockOptions = {}): Controll
         return { reversal: { id: requestId, originalRequestId, createdAt: previous.createdAt },
           stats: getCurrentStats() };
       }
+      if (action.undoEligible === false) throw new Error("This action cannot be undone.");
       if ([...reversals.values()].some((item) => item.requestId === requestId)) throw new Error("Request conflict.");
       if (action.kind === "meeting") {
         const original = meetingRequests.get(originalRequestId);
@@ -267,7 +271,7 @@ export function createMockControllerService(options: MockOptions = {}): Controll
         feedback.splice(index, 1);
       } else {
         if (mode !== "manual" || action.createdAt < (sessionStart ?? "")) throw new Error("Reconciliation conflict.");
-        if (action.operation === "set_checkins" || action.undoEligible === false) throw new Error("This action cannot be undone.");
+        if (action.operation === "set_checkins") throw new Error("This action cannot be undone.");
         checkedIn -= action.quantity ?? 1;
         version++;
       }

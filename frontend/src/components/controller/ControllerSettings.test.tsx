@@ -23,7 +23,7 @@ describe("controller Settings", () => {
     await openSettings(service);
     expect(screen.getByRole("dialog").getAttribute("aria-labelledby")).toBe("settings-title");
     resetSection();
-    fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
     expect(screen.getByRole("button", { name: "Confirm reset" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET" } });
     expect(screen.getByRole("button", { name: "Confirm reset" }).hasAttribute("disabled")).toBe(true);
@@ -33,18 +33,21 @@ describe("controller Settings", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("requires typed confirmation and preserves GROW and target during synthetic reset", async () => {
+  it("requires typed confirmation, clears MATCH/GROW and preserves MEET and target during synthetic reset", async () => {
     const service = createMockControllerService({ delayMs: 0 });
     await service.submitMeeting({ requestId: "seed-meeting", quantity: 3 });
     await service.submitFeedback({ requestId: "seed-rating", rating: 5 });
+    const before = await service.getSettings();
+    const update = vi.spyOn(service, "updateSettings");
     await openSettings(service);
     resetSection();
-    fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
     fireEvent.change(screen.getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm reset" }));
-    await screen.findByText("Saved. The dashboard is updating.");
-    expect(await service.getStats()).toMatchObject({ completedMeetings: 0, feedbackCount: 1, averageRating: 5 });
-    expect(await service.getSettings()).toMatchObject({ registered: 0, checkedIn: 0, meetingTarget: 1200 });
+    await screen.findByText("MATCH and GROW totals reset. MEET attendance is unchanged.");
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ kind: "reset_event", scope: "match_grow", confirmation: "RESET EVENT" }));
+    expect(await service.getStats()).toMatchObject({ completedMeetings: 0, feedbackCount: 0, averageRating: null });
+    expect(await service.getSettings()).toEqual({ ...before, version: before.version + 1 });
   });
 
   it("saves exact registrations and target while preserving completed meetings", async () => {
@@ -98,7 +101,7 @@ describe("controller Settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save dashboard settings" }));
     await screen.findByText("Response lost");
     resetSection();
-    expect(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }).hasAttribute("disabled")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Retry pending operation" }));
     await screen.findByText("Saved. The dashboard is updating.");
     expect(update).toHaveBeenCalledTimes(2);
@@ -160,17 +163,17 @@ it("keeps uncertain reset errors and safe retry inside the active confirmation d
   });
   await openSettings(service);
   resetSection();
-  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
   fireEvent.click(within(confirmation).getByRole("button", { name: "Confirm reset" }));
   expect(await within(confirmation).findByRole("alert")).toHaveProperty("textContent", "Reset response lost");
   fireEvent.click(within(confirmation).getByRole("button", { name: "Retry pending operation" }));
-  await screen.findByText("Saved. The dashboard is updating.");
+  await screen.findByText("MATCH and GROW totals reset. MEET attendance is unchanged.");
   expect(update.mock.calls[0][0]).toEqual(update.mock.calls[1][0]);
 });
 
-it("clears successful pre-reset totals after resetting through Settings", async () => {
+it("refreshes MATCH/GROW after resetting through Settings while preserving MEET totals", async () => {
   const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 2000 });
   render(<StaffController service={service} />);
   fireEvent.click(await screen.findByRole("button", { name: "1 Meeting" }));
@@ -181,15 +184,15 @@ it("clears successful pre-reset totals after resetting through Settings", async 
   await screen.findByText("Exact check-in total saved: 1500.");
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
   resetSection();
-  fireEvent.click(await screen.findByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Reset MATCH & GROW Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
   fireEvent.click(within(confirmation).getByRole("button", { name: "Confirm reset" }));
-  await screen.findByText("Saved. The dashboard is updating.");
+  await screen.findByText("MATCH and GROW totals reset. MEET attendance is unchanged.");
   await screen.findByLabelText("0 completed meetings");
   expect(screen.queryByText("Meeting recorded successfully. Total: 1.")).toBeNull();
   expect(screen.queryByText("Exact check-in total saved: 1500.")).toBeNull();
-  expect(await service.getCheckins()).toMatchObject({ registered: 0, checkedIn: 0 });
+  expect(await service.getCheckins()).toMatchObject({ registered: 2000, checkedIn: 1500 });
 });
 
 it("preserves an uncertain check-in retry across a successful Settings save", async () => {
@@ -227,7 +230,7 @@ it("unlocks Stop and Reset after Start returns the exact deployed response shape
   await screen.findByText("Sync stopped. Last fetched totals are preserved.");
   expect(screen.queryByRole("button", { name: "Retry pending operation" })).toBeNull();
   resetSection();
-  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
   expect(screen.getByRole("button", { name: "Confirm reset" }).hasAttribute("disabled")).toBe(true);
   expect(update.mock.calls.map(([request]) => request.kind)).toEqual(["start_sync", "stop_sync"]);
   expect(await service.getSettings()).toMatchObject({ registered: 120, checkedIn: 35, syncEnabled: false });
@@ -250,7 +253,7 @@ it.each(["start_sync", "stop_sync"] as const)("recovers a lost %s receipt from n
   expect(update).toHaveBeenCalledTimes(1);
   if (kind === "start_sync") expect(screen.getByRole("button", { name: "Stop Sync" }).hasAttribute("disabled")).toBe(false);
   resetSection();
-  expect(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }).hasAttribute("disabled")).toBe(false);
+  expect(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }).hasAttribute("disabled")).toBe(false);
 });
 
 it("does not clear an unconfirmed request from an unchanged status", async () => {
@@ -284,7 +287,7 @@ it("Escape cancels only the reset confirmation and preserves its parent Settings
   const service = await openSettings();
   const update = vi.spyOn(service, "updateSettings");
   resetSection();
-  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent(confirmation, new Event("cancel", { bubbles: false, cancelable: true }));
   expect(screen.queryByRole("dialog", { name: "Confirm event reset" })).toBeNull();
@@ -300,7 +303,7 @@ it("keeps an in-flight reset confirmation open on Escape and prevents duplicate 
   const update = vi.spyOn(service, "updateSettings").mockImplementation(async request => { await held; return real(request); });
   await openSettings(service);
   resetSection();
-  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & MEET Totals" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset MATCH & GROW Totals" }));
   const confirmation = screen.getByRole("dialog", { name: "Confirm event reset" });
   fireEvent.change(within(confirmation).getByLabelText("Type RESET EVENT to confirm"), { target: { value: "RESET EVENT" } });
   const confirm = within(confirmation).getByRole("button", { name: "Confirm reset" });
@@ -310,5 +313,5 @@ it("keeps an in-flight reset confirmation open on Escape and prevents duplicate 
   expect(screen.getByRole("dialog", { name: "Confirm event reset" })).toBeTruthy();
   expect(update).toHaveBeenCalledTimes(1);
   complete();
-  await screen.findByText("Saved. The dashboard is updating.");
+  await screen.findByText("MATCH and GROW totals reset. MEET attendance is unchanged.");
 });

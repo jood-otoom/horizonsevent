@@ -52,6 +52,8 @@ do $$
 declare a uuid:='00000000-0000-4000-8000-000000017135'; s uuid:='00000000-0000-4000-8000-000000017136';
   v bigint; rid uuid:=gen_random_uuid(); run1 uuid:=gen_random_uuid(); tok1 uuid:=gen_random_uuid();
   run2 uuid:=gen_random_uuid(); tok2 uuid:=gen_random_uuid(); before_count integer;
+  feedback_id uuid:=gen_random_uuid(); checkin_id uuid:=gen_random_uuid(); reset_id uuid:=gen_random_uuid();
+  before_control jsonb; before_attendance jsonb;
 begin
   -- Staff cannot change settings, and API mode cannot accept manual submissions.
   begin perform public.admin_event_operation(17135,gen_random_uuid(),s,'update_settings',0,'{"meetingTarget":1500}'); raise exception 'staff_settings_allowed';
@@ -131,11 +133,11 @@ begin
   select request_id into rid from public.controller_requests where kind='checkin' and quantity=10;
   begin perform public.reverse_controller_action(17135,rid,gen_random_uuid(),s,'wrong_count'); raise exception 'old_baseline_undo_allowed';
   exception when raise_exception then if sqlerrm<>'reconciliation_conflict' then raise; end if; end;
-  -- Existing MATCH +1/+2/+3 and GROW persist, then the critical reset touches only MATCH/MEET.
+  -- Existing MATCH +1/+2/+3 and GROW persist, then the critical reset touches only MATCH/GROW.
   perform public.record_meetings(17135,gen_random_uuid(),s,1::smallint);
   perform public.record_meetings(17135,gen_random_uuid(),s,2::smallint);
   rid:=gen_random_uuid();perform public.record_meetings(17135,rid,s,3::smallint);
-  perform public.record_feedback(17135,gen_random_uuid(),s,4::smallint);
+  perform public.record_feedback(17135,feedback_id,s,4::smallint);
   if(select completed_meetings from public.dashboard_aggregates where event_id=17135)<>6 then raise exception 'match_increments_failed'; end if;
   -- Request UUIDs have one namespace across submissions, corrections and admin operations.
   select request_id into run1 from public.controller_operations order by created_at limit 1;
@@ -153,21 +155,48 @@ begin
   begin perform public.admin_event_operation(17135,gen_random_uuid(),a,'reset_event',v,'{"confirmation":"RESET"}'); raise exception 'unconfirmed_reset_allowed';
   exception when raise_exception then if sqlerrm<>'invalid_confirmation' then raise; end if; end;
   if(select completed_meetings from public.dashboard_aggregates where event_id=17135)<>6 then raise exception 'dialog_reset_data'; end if;
+  -- Cached clients with the prior MATCH/MEET scope must fail before any write.
+  begin perform public.admin_event_operation(17135,gen_random_uuid(),a,'reset_event',v,'{"confirmation":"RESET EVENT"}'); raise exception 'legacy_reset_allowed';
+  exception when raise_exception then if sqlerrm<>'invalid_confirmation' then raise; end if; end;
+  begin perform public.admin_event_operation(17135,gen_random_uuid(),a,'reset_event',v,'{"confirmation":"RESET EVENT","scope":"match_meet"}'); raise exception 'wrong_reset_scope_allowed';
+  exception when raise_exception then if sqlerrm<>'invalid_confirmation' then raise; end if; end;
+  -- A fresh attendance increment must survive reset and remain eligible for Undo.
+  perform public.record_manual_checkin(17135,checkin_id,s,5);
+  select version,to_jsonb(c)-'version' into v,before_control from public.meet_checkin_control c where event_id=17135;
+  select to_jsonb(g)-array['completed_meetings','feedback_count','rating_sum','updated_at'] into before_attendance
+    from public.dashboard_aggregates g where event_id=17135;
   before_count:=(select count(*) from public.meet_snapshots);
-  perform public.admin_event_operation(17135,gen_random_uuid(),a,'reset_event',v,'{"confirmation":"RESET EVENT"}');
+  perform public.admin_event_operation(17135,reset_id,a,'reset_event',v,'{"confirmation":"RESET EVENT","scope":"match_grow"}');
   if exists(select 1 from public.dashboard_aggregates where event_id=17135 and
-    (registered<>0 or checked_in<>0 or completed_meetings<>0 or feedback_count<>1 or rating_sum<>4)) then raise exception 'reset_scope_failed'; end if;
+    (completed_meetings<>0 or feedback_count<>0 or rating_sum<>0)) then raise exception 'reset_scope_failed'; end if;
+  if (select to_jsonb(g)-array['completed_meetings','feedback_count','rating_sum','updated_at'] from public.dashboard_aggregates g where event_id=17135)
+      is distinct from before_attendance or
+    (select to_jsonb(c)-'version' from public.meet_checkin_control c where event_id=17135) is distinct from before_control or
+    (select version from public.meet_checkin_control where event_id=17135)<>v+1 then raise exception 'reset_changed_meet_state'; end if;
   if(select meeting_target from public.event_settings where event_id=17135)<>1500 or
-    (select registered_override from public.meet_checkin_control where event_id=17135) is not null or
+    (select registered_override from public.meet_checkin_control where event_id=17135)<>250 or
     (select count(*) from public.meet_snapshots)<>before_count or
     (select count(*) from public.feedback_records)<>1 or (select count(*) from public.meeting_records)<>6 then raise exception 'reset_deleted_history_or_configuration'; end if;
   perform public.record_meetings(17135,rid,s,3::smallint);
-  if(select completed_meetings from public.dashboard_aggregates where event_id=17135)<>0 then raise exception 'old_request_repopulated_reset'; end if;
+  perform public.record_feedback(17135,feedback_id,s,4::smallint);
+  if exists(select 1 from public.dashboard_aggregates where event_id=17135 and
+    (completed_meetings<>0 or feedback_count<>0 or rating_sum<>0)) then raise exception 'old_request_repopulated_reset'; end if;
   begin perform public.reverse_controller_action(17135,rid,gen_random_uuid(),s,'wrong_count'); raise exception 'cleared_action_undo_allowed';
   exception when raise_exception then if sqlerrm<>'action_cleared' then raise; end if; end;
-  if not exists(select 1 from jsonb_array_elements(public.list_controller_actions(17135,a)) x where x->>'operation'='reset_event') then raise exception 'reset_history_missing'; end if;
+  begin perform public.reverse_controller_action(17135,feedback_id,gen_random_uuid(),s,'wrong_rating'); raise exception 'cleared_feedback_undo_allowed';
+  exception when raise_exception then if sqlerrm<>'action_cleared' then raise; end if; end;
+  if not exists(select 1 from public.controller_operations where request_id=reset_id and
+    input->'value'->>'scope'='match_grow' and before_values->>'feedbackCount'='1' and before_values->>'ratingSum'='4' and
+    after_values->>'feedbackCount'='0' and after_values->>'ratingSum'='0') or
+    not exists(select 1 from jsonb_array_elements(public.list_controller_actions(17135,a)) x where x->>'operation'='reset_event') then raise exception 'reset_history_missing'; end if;
+  perform public.reverse_controller_action(17135,checkin_id,gen_random_uuid(),s,'duplicate');
+  if(select checked_in from public.dashboard_aggregates where event_id=17135)<>40 then raise exception 'reset_broke_checkin_undo'; end if;
   perform public.record_meetings(17135,gen_random_uuid(),s,1::smallint);
-  if(select completed_meetings from public.dashboard_aggregates where event_id=17135)<>1 then raise exception 'post_reset_increment_failed'; end if;
+  if (public.record_feedback(17135,gen_random_uuid(),s,5::smallint)->>'averageRating')::numeric<>5 then raise exception 'post_reset_average_includes_old_ratings'; end if;
+  -- Replaying the original reset must not clear subsequent legitimate records.
+  perform public.admin_event_operation(17135,reset_id,a,'reset_event',v,'{"confirmation":"RESET EVENT","scope":"match_grow"}');
+  if exists(select 1 from public.dashboard_aggregates where event_id=17135 and
+    (completed_meetings<>1 or feedback_count<>1 or rating_sum<>5)) then raise exception 'post_reset_or_duplicate_reset_failed'; end if;
 end;
 $$;
 reset role;

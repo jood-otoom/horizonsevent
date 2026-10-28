@@ -10,9 +10,9 @@ The live dashboard at `/` and authenticated controller at `/controller` use Reac
 - Supabase Auth and event membership gate the controller. Staff/admin retain existing MATCH +1/+2/+3, GROW ratings 1–5, history and audited reversals. Admin-only Settings actions use the same `controller-submit` endpoint and are reauthorized in SQL.
 - Start saves enabled state and a new generation, then queues an immediate server-side request. A private pg_cron tick every ten seconds dispatches only due work; due times are 120 seconds from each claimed start, with no concurrent runs or missed-run catch-up. Closing the browser has no scheduling effect.
 - The dispatcher reads a dedicated credential from Vault and sends a fixed-destination generation-fenced request to `sync-b2match`. The worker attempts each B2Match page once, preserves established status/check-in/deduplication semantics, and publishes only a validated complete traversal.
-- The existing lease, run, snapshot and aggregate tables provide transactionally fenced publication. Stop, failure, manual activation and reset advance the generation. The watchdog stops lost dispatches and expired workers. No automatic retry or recovery is implemented.
+- The existing lease, run, snapshot and aggregate tables provide transactionally fenced publication. Stop, failure and manual activation advance the generation. The MATCH/GROW reset leaves attendance synchronization unchanged. The watchdog stops lost dispatches and expired workers. No automatic retry or recovery is implemented.
 - A confirmed one-way Manual Mode enables +1/+2/+5/+10 check-ins and admin exact totals against the same effective MEET row. Version checks reject stale exact totals/settings; all adjustments are audited. Registration overrides can be used independently and remain separate from raw API snapshots. They are never overwritten by subsequent API publications.
-- The protected reset marks prior MATCH/check-in requests cleared, zeros effective MATCH/MEET, stops/fences synchronization, clears registration override, and records an immutable audit operation. GROW, target, raw snapshots, accounts and other configuration remain unchanged. It is tested only in isolated data.
+- The protected reset requires an explicit `match_grow` scope and typed confirmation, marks prior meeting/feedback requests cleared, zeros MATCH completed meetings and GROW count/rating sum, and records before/after audit values. An empty GROW has a null average. MEET counts, manual overrides/session, source, synchronization, target, raw snapshots, accounts and other configuration remain unchanged; the shared control version advances for stale-request protection. It is tested only in isolated data.
 
 ## Data and authorization boundaries
 
@@ -22,7 +22,7 @@ The browser never receives B2Match or service-role credentials and never calls B
 
 ## Migration inventory
 
-The four previously hosted migrations establish the original schema, restricted RLS helper, audited reversals and map aggregate. This release applies the previously prepared manual-checkin migration followed by `20261028192045_event_operations_and_sync.sql` and `20261028192319_b2match_server_schedule.sql`. The later migration supersedes the earlier reconciliation flow; no controller operation can return to API mode. See [schema](../database/SCHEMA.md) for objects, grants and rollback constraints.
+The four previously hosted migrations establish the original schema, restricted RLS helper, audited reversals and map aggregate. This release applies the previously prepared manual-checkin migration followed by `20261028192045_event_operations_and_sync.sql` and `20261028192319_b2match_server_schedule.sql`. The forward migration `20261028211842_reset_match_grow.sql` corrects only the protected reset function, preserves stored values during deployment, and rejects cached requests with the former scope. The scheduler migration supersedes the earlier reconciliation flow; no controller operation can return to API mode. See [schema](../database/SCHEMA.md) for objects, grants and rollback constraints.
 
 ## Operational limits
 

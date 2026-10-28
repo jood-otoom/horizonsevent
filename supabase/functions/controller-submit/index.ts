@@ -87,7 +87,7 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
       p_value: submission.kind === "update_settings" ? {
         ...(submission.registeredOverride !== undefined ? { registeredOverride: submission.registeredOverride } : {}),
         ...(submission.meetingTarget !== undefined ? { meetingTarget: submission.meetingTarget } : {}),
-      } : submission.kind === "reset_event" ? { confirmation: submission.confirmation } : {},
+      } : submission.kind === "reset_event" ? { confirmation: submission.confirmation, scope: submission.scope } : {},
     }) : await ctx.supabaseAdmin.rpc("reverse_controller_action", {
       p_event_id: 17135, p_original_request_id: submission.originalRequestId,
       p_reversal_request_id: submission.requestId, p_staff_id: userId,

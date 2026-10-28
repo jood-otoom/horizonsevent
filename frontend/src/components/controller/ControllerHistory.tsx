@@ -11,7 +11,7 @@ interface ControllerHistoryProps {
 }
 
 function actionLabel(action: ControllerAction) {
-  if (action.kind === "settings") return action.label ?? (({ update_settings: "Dashboard settings updated", reset_event: "Reset MATCH & MEET totals",
+  if (action.kind === "settings") return action.label ?? (({ update_settings: "Dashboard settings updated", reset_event: "Reset event totals",
     activate_manual: "Manual Mode activated", start_sync: "B2Match sync started", stop_sync: "B2Match sync stopped",
     set_checkins: "Exact check-in total updated" } as Record<string, string>)[action.operation ?? ""] ?? "Event settings updated");
   if (action.operation === "set_checkins") return `Set checked-in total to ${action.value}`;

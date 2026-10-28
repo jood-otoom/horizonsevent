@@ -74,6 +74,8 @@ describe("Edge request boundaries", () => {
     expect(() => parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2 })).toThrow();
     expect(() => parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2, meetingTarget: 0 })).toThrow();
     expect(() => parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "reset event" })).toThrow();
-    expect(parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "RESET EVENT" })).toMatchObject({ kind: "reset_event" });
+    expect(() => parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "RESET EVENT" })).toThrow();
+    expect(() => parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "RESET EVENT", scope: "match_meet" })).toThrow();
+    expect(parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "RESET EVENT", scope: "match_grow" })).toMatchObject({ kind: "reset_event", scope: "match_grow" });
   });
 });

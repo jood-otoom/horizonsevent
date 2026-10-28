@@ -9,7 +9,7 @@ export type Submission =
   | { kind: "set_checkins"; requestId: string; checkedIn: number; expectedVersion: number }
   | { kind: "start_sync" | "stop_sync" | "manual_mode"; requestId: string; expectedVersion: number }
   | { kind: "update_settings"; requestId: string; expectedVersion: number; registeredOverride?: number; meetingTarget?: number }
-  | { kind: "reset_event"; requestId: string; expectedVersion: number; confirmation: "RESET EVENT" }
+  | { kind: "reset_event"; requestId: string; expectedVersion: number; confirmation: "RESET EVENT"; scope: "match_grow" }
   | { kind: "undo"; requestId: string; originalRequestId: string;
       reason: "duplicate" | "wrong_count" | "wrong_rating" | "other" };
 
@@ -45,8 +45,8 @@ export function parseSubmission(value: unknown): Submission {
       ...(body.registeredOverride !== undefined ? { registeredOverride: body.registeredOverride as number } : {}),
       ...(body.meetingTarget !== undefined ? { meetingTarget: body.meetingTarget as number } : {}) };
   }
-  if (body.kind === "reset_event" && version(body.expectedVersion) && body.confirmation === "RESET EVENT") {
-    return { kind: "reset_event", requestId: body.requestId, expectedVersion: body.expectedVersion, confirmation: "RESET EVENT" };
+  if (body.kind === "reset_event" && version(body.expectedVersion) && body.confirmation === "RESET EVENT" && body.scope === "match_grow") {
+    return { kind: "reset_event", requestId: body.requestId, expectedVersion: body.expectedVersion, confirmation: "RESET EVENT", scope: "match_grow" };
   }
   if (body.kind === "undo" && typeof body.originalRequestId === "string" &&
       uuid.test(body.originalRequestId) && body.originalRequestId !== body.requestId &&

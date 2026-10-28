@@ -76,13 +76,11 @@ describe("live controller administrative response boundary", () => {
   it.each<SettingsAction>([
     { kind: "start_sync" },
     { kind: "stop_sync" },
-    { kind: "reset_event", confirmation: "RESET EVENT" },
+    { kind: "reset_event", scope: "match_grow", confirmation: "RESET EVENT" },
   ])("confirms $kind from the deployed {record,settings} response without checkins", async (operation) => {
     const updated: ControllerSettings = operation.kind === "start_sync"
       ? { ...settings, syncState: "starting", syncEnabled: true, canStart: false }
-      : operation.kind === "reset_event"
-        ? { ...settings, registered: 0, checkedIn: 0, source: "reset" }
-        : settings;
+      : settings;
     invoke.mockResolvedValueOnce({ data: { record, settings: updated }, error: null });
     const request = { ...operation, requestId: record.id, expectedVersion: 3 };
 
