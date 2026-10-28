@@ -1,6 +1,12 @@
 # Deployment and local operations
 
-## October 28 readiness release — current authority
+## Map icon build repair — October 28
+
+Cloudflare's failed preview jobs `46810f3c` and `0bf77b26` built branch `codex/map-redesign-and-dashboard-polish` at `3a6413e`. That commit replaced the old icon sheet/portrait with 15 tracked standalone PNGs, while `MapIcon.tsx` retained the deleted imports. The source repair uses the replacement PNGs without changing image files, layout, map statistics, controller behavior, backend configuration, or event data. The ordinary workspace now passes typecheck, lint, all 184 tests, and the live production build. The separate Wrangler `pages_build_output_dir` warning did not cause the failed import and is unchanged; Pages continues using its configured build/output settings.
+
+Local production preview at 1792×1024 rendered all 15 replacement images with no document overflow or captured console warnings/errors. The national total remained 265 and keyboard selection of Aqaba showed 84. The repair is prepared on the existing branch; a fresh hosted build must be verified after pushing. The existing production `main` deployment was observed as `a6a9aaba-5679-4e30-a2c4-a38ac7afbf2c` at `a99ff82`, following the earlier artifact release documented below. This build repair does not itself authorize a database migration, B2Match activation, or event reset.
+
+## October 28 readiness release — evidence before later Git deployments
 
 Status: **deployed and read-only production smoke-tested**. The single existing account has full administrator controller access; no accounts or role-management UI were added. All three migrations were applied through the authenticated CLI after the owner explicitly approved that method following two connector declines. The restricted Cloudflare authorization was corrected to the verified owning `work` account. Automatic synchronization remains **Stopped**, API mode, generation/version 0, no attempts/success/next fetch, zero sync runs/leases and zero controller operations. No production reset, manual-mode activation, meeting/check-in submission, rating change or live B2Match request was performed.
 

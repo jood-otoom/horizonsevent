@@ -5,44 +5,47 @@ import { MAP_ICON_SIZES, MapIcon, type MapIconName, type MapIconSize } from "./M
 
 afterEach(cleanup);
 
-const names: MapIconName[] = [
-  "female", "male", "building", "people", "rocket", "bars", "sprout",
-  "monitor", "leaf", "industry", "heart", "book", "briefcase", "utensils", "more",
+const sources: [MapIconName, string][] = [
+  ["female", "female_participants"], ["male", "male_participants"],
+  ["building", "startups_employing_people"], ["people", "total_employees"],
+  ["rocket", "acceleration"], ["bars", "go_to_market"], ["sprout", "grow_plus"],
+  ["monitor", "technology_digital"], ["leaf", "green_clean_tech"],
+  ["industry", "industry_manufacturing"], ["heart", "health_social_impact"],
+  ["book", "education_creative"], ["briefcase", "commerce_services"],
+  ["utensils", "hospitality_tourism"], ["more", "other"],
 ];
 
 describe("MapIcon", () => {
   it("renders all dashboard subjects from the supplied artwork", () => {
-    for (const name of names) {
+    for (const [name, filename] of sources) {
       const { container, unmount } = render(<MapIcon name={name} />);
       const svg = container.querySelector("svg");
       expect(svg?.getAttribute("viewBox")).toBe("0 0 64 64");
-      expect(svg?.querySelector("svg image")?.getAttribute("href")).toContain(
-        name === "female" ? "female-portrait.png" : "dashboard-icon-sheet.png",
-      );
-      expect(svg?.querySelector("svg")?.getAttribute("viewBox")).not.toBe("0 0 313.5 313.5");
+      expect(svg?.querySelector("image")?.getAttribute("href")).toContain(`${filename}.png`);
       expect(svg?.getAttribute("aria-hidden")).toBe("true");
       unmount();
     }
   });
 
-  it("uses measured sheet crops and all four standard display sizes", () => {
+  it("fits complete images without cropping at all four standard display sizes", () => {
     const { rerender, container } = render(<MapIcon name="male" size="small" />);
-    expect(container.querySelector("svg svg")?.getAttribute("viewBox")).toBe("357 100 260 266");
     const sizes: MapIconSize[] = ["small", "medium", "large", "extraLarge"];
     for (const size of sizes) {
       rerender(<MapIcon name="industry" size={size} />);
       expect(container.firstElementChild?.getAttribute("width")).toBe(String(MAP_ICON_SIZES[size]));
+      expect(container.firstElementChild?.getAttribute("height")).toBe(String(MAP_ICON_SIZES[size]));
+      const image = container.querySelector("image");
+      expect(image?.getAttribute("width")).toBe("64");
+      expect(image?.getAttribute("height")).toBe("64");
+      expect(image?.getAttribute("preserveAspectRatio")).toBe("xMidYMid meet");
+      expect(container.querySelector("svg svg")).toBeNull();
     }
-    expect(container.querySelector("svg svg")?.getAttribute("viewBox")).toBe("353 693 250 238");
-    rerender(<MapIcon name="more" />);
-    expect(container.querySelector("svg svg")?.getAttribute("viewBox")).toBe("664 1049 242 79");
   });
 
-  it("supports a standalone accessible label while keeping the sprite hidden", () => {
+  it("supports a standalone accessible label while keeping the raster hidden", () => {
     render(<MapIcon name="female" label="Female participants" size="large" />);
     const icon = screen.getByRole("img", { name: "Female participants" });
     expect(icon.getAttribute("width")).toBe(String(MAP_ICON_SIZES.large));
-    expect(icon.querySelector("svg")?.getAttribute("viewBox")).toBe("145 59 965 1095");
     expect(icon.querySelector("image")?.getAttribute("aria-hidden")).toBe("true");
   });
 });

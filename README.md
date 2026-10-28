@@ -61,7 +61,7 @@ See [deployment](docs/deployment/DEPLOYMENT.md) for later hosted-project setup, 
 - `frontend/` — preserved dashboard/controller UI, demo providers, live Supabase Auth and aggregate clients.
 - `frontend/src/pages/MapDashboard.tsx` — separate `/map` display using one static, aggregate-only workbook snapshot.
 - `frontend/src/components/map/MapIcon.tsx` — reusable 64-unit SVG viewport for the supplied high-resolution PNG card icons, with 24, 36, 48, and 64 px sizes.
-- `frontend/src/assets/map/icons/` — owner-supplied female portrait and matching icon sheet used by `MapIcon`.
+- `frontend/src/assets/map/icons/` — 15 owner-supplied standalone PNGs used by `MapIcon`, plus the retained reference preview.
 - `frontend/src/data/mapSnapshot.json` — generated national and per-governorate counts with no source records.
 - `scripts/prepare_map_dashboard_data.py` — reviewable import from the private `Map master` worksheet.
 - `supabase/functions/` — public aggregate dashboard read, authenticated dashboard/controller functions, protected sync, and gated service-only dry-run functions; shared validated b2match logic.
