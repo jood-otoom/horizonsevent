@@ -21,7 +21,7 @@ const page = (participants: unknown[], totalItems = participants.length, nextPag
 const response = (body: unknown, status = 200, headers?: HeadersInit) =>
   new Response(JSON.stringify(body), { status, headers });
 
-const options = (fetcher: typeof fetch) => ({ apiKey: "synthetic-test-key", eventId: "17135", fetcher, sleep: async () => {} });
+const options = (fetcher: typeof fetch) => ({ apiKey: "synthetic-test-key", eventId: "17135", fetcher });
 const fetchAllParticipants = async (settings: B2matchClientOptions) =>
   (await fetchAllParticipantsWithStats(settings)).participants;
 
@@ -194,22 +194,18 @@ describe("b2match participant client", () => {
     await expect(fetchAllParticipants(options(async () => {
       count++;
       return count === 1 ? response(page([participant(1)], 2, "next")) : response({}, 500);
-    }))).rejects.toThrow("transient_upstream_failure");
+    }))).rejects.toThrow("upstream_failure");
   });
 
-  it("bounds retries for 429 responses and request timeouts", async () => {
-    const throttled = vi.fn<typeof fetch>(async () => response({}, 429, { "retry-after": "0" }));
-    await expect(fetchAllParticipants(options(throttled))).rejects.toThrow("transient_upstream_failure");
-    expect(throttled).toHaveBeenCalledTimes(3);
-    const serverError = vi.fn<typeof fetch>(async () => response({}, 503));
-    await expect(fetchAllParticipants(options(serverError))).rejects.toThrow("transient_upstream_failure");
-    expect(serverError).toHaveBeenCalledTimes(3);
-    const excessiveDelay = vi.fn<typeof fetch>(async () => response({}, 429, { "retry-after": "121" }));
-    await expect(fetchAllParticipants(options(excessiveDelay))).rejects.toThrow("retry_after_exceeds_budget");
-    expect(excessiveDelay).toHaveBeenCalledTimes(1);
+  it.each([429, 500, 503])("stops on HTTP %i without any retry", async (status) => {
+    const fetcher = vi.fn<typeof fetch>(async () => response({}, status, { "retry-after": "0" }));
+    await expect(fetchAllParticipantsWithStats(options(fetcher))).rejects.toMatchObject({
+      code: status === 429 ? "rate_limited" : "upstream_failure", httpStatus: status, requestsMade: 1,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("aborts and retries a hung request only three times", async () => {
+  it("aborts a hung request after twelve seconds without retrying", async () => {
     vi.useFakeTimers();
     try {
       const aborting = vi.fn<typeof fetch>(async (_input, init) => {
@@ -217,24 +213,21 @@ describe("b2match participant client", () => {
         throw new Error("unreachable");
       });
       const pending = fetchAllParticipants(options(aborting));
-      const rejected = expect(pending).rejects.toThrow("network_failure");
-      await vi.advanceTimersByTimeAsync(36_000);
+      const rejected = expect(pending).rejects.toThrow("request_timeout");
+      await vi.advanceTimersByTimeAsync(12_000);
       await rejected;
-      expect(aborting).toHaveBeenCalledTimes(3);
+      expect(aborting).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("counts every upstream attempt including successful retries", async () => {
-    let calls = 0;
-    const fetcher: typeof fetch = async () => {
-      calls++;
-      return calls === 1 ? response({}, 429, { "retry-after": "0" }) : response(page([participant(1)]));
-    };
-    const result = await fetchAllParticipantsWithStats(options(fetcher));
-    expect(result.requestsMade).toBe(2);
-    expect(result.pagesProcessed).toBe(1);
+  it("stops immediately on a network failure and preserves progress diagnostics", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => { throw new Error("secret upstream details"); });
+    await expect(fetchAllParticipantsWithStats(options(fetcher))).rejects.toMatchObject({
+      code: "network_failure", requestsMade: 1, pagesProcessed: 0, recordsProcessed: 0,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 

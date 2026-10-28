@@ -3,14 +3,19 @@ import type {
   ControllerAction,
   CheckinStatus,
   CheckinSubmissionResponse,
-  ReconcileCheckinsRequest,
   FeedbackSubmissionRequest,
   FeedbackSubmissionResponse,
   MeetingSubmissionRequest,
   MeetingSubmissionResponse,
   UndoRequest,
   UndoResponse,
+  CheckinQuantity,
+  ControllerSettings,
+  SettingsRequest,
+  SettingsResponse,
 } from "../types/controller";
+
+export class ControllerConflictError extends Error {}
 
 /** Demo and protected Supabase implementations share the same controller contract. */
 export interface ControllerService {
@@ -19,7 +24,9 @@ export interface ControllerService {
   getCheckins(): Promise<CheckinStatus>;
   submitMeeting(request: MeetingSubmissionRequest): Promise<MeetingSubmissionResponse>;
   submitFeedback(request: FeedbackSubmissionRequest): Promise<FeedbackSubmissionResponse>;
-  submitCheckin(request: { requestId: string }): Promise<CheckinSubmissionResponse>;
-  reconcileCheckins(request: ReconcileCheckinsRequest): Promise<CheckinSubmissionResponse>;
+  submitCheckin(request: { requestId: string; quantity?: CheckinQuantity }): Promise<CheckinSubmissionResponse>;
+  setCheckins(request: { requestId: string; checkedIn: number; expectedVersion: number }): Promise<CheckinSubmissionResponse>;
+  getSettings(): Promise<ControllerSettings>;
+  updateSettings(request: SettingsRequest): Promise<SettingsResponse>;
   undoAction(request: UndoRequest): Promise<UndoResponse>;
 }

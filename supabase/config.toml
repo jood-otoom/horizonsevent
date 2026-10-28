@@ -28,7 +28,7 @@ enable_confirmations = false
 enabled = true
 
 # The platform verifies browser JWTs, and @supabase/server rechecks user identity.
-# The service-only sync uses a named secret key on apikey, so its wrapper verifies it.
+# The service-only sync validates a dedicated worker header before creating its SDK context.
 [functions.sync-b2match]
 verify_jwt = false
 

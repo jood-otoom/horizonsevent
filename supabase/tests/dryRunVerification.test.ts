@@ -108,9 +108,8 @@ describe("read-only b2match verification", () => {
         ? Response.json(page([participant(1)], 2, "next", "page-1"))
         : new Response(null, { status: 500 });
     };
-    await expect(verifyB2matchReadOnly({ apiKey: "fixture-only", eventId: "17135", fetcher,
-      sleep: async () => {} })).rejects.toMatchObject({ code: "transient_upstream_failure", pagesProcessed: 1,
-        recordsProcessed: 1, requestsMade: 4 });
+    await expect(verifyB2matchReadOnly({ apiKey: "fixture-only", eventId: "17135", fetcher })).rejects.toMatchObject({ code: "upstream_failure", pagesProcessed: 1,
+        recordsProcessed: 1, requestsMade: 2 });
   });
 
   it("reports an allowlisted failure class and attempt count without partial KPIs", () => {

@@ -11,11 +11,15 @@ interface ControllerHistoryProps {
 }
 
 function actionLabel(action: ControllerAction) {
+  if (action.kind === "settings") return action.label ?? (({ update_settings: "Dashboard settings updated", reset_event: "Reset MATCH & MEET totals",
+    activate_manual: "Manual Mode activated", start_sync: "B2Match sync started", stop_sync: "B2Match sync stopped",
+    set_checkins: "Exact check-in total updated" } as Record<string, string>)[action.operation ?? ""] ?? "Event settings updated");
+  if (action.operation === "set_checkins") return `Set checked-in total to ${action.value}`;
   if (action.operation === "reconcile") return `Use verified API count ${action.value}`;
   if (action.operation === "undo") return `Undo ${action.kind === "meeting"
     ? `+${action.quantity} meeting${action.quantity === 1 ? "" : "s"}`
-    : action.kind === "feedback" ? `${action.rating}-star rating` : "+1 check-in"}`;
-  return action.kind === "checkin" ? "+1 check-in" : action.kind === "meeting"
+    : action.kind === "feedback" ? `${action.rating}-star rating` : `+${action.quantity} check-ins`}`;
+  return action.kind === "checkin" ? `+${action.quantity} check-in${action.quantity === 1 ? "" : "s"}` : action.kind === "meeting"
     ? `+${action.quantity} meeting${action.quantity === 1 ? "" : "s"}`
     : `${action.rating}-star rating`;
 }
@@ -38,7 +42,7 @@ export default function ControllerHistory({ status, actions, undoState, message,
           {recent.map((action) => (
             <li key={action.requestId}>
               <div>
-                <strong>{action.kind === "meeting" ? "MATCH" : action.kind === "feedback" ? "GROW" : "CHECK-IN"} · {actionLabel(action)}</strong>
+                <strong>{action.kind === "meeting" ? "MATCH" : action.kind === "feedback" ? "GROW" : action.kind === "settings" ? "SETTINGS" : "CHECK-IN"} · {actionLabel(action)}</strong>
                 <span>{new Date(action.createdAt).toLocaleString("en-US", { timeZone: "Asia/Amman" })}</span>
               </div>
               {action.reversedAt

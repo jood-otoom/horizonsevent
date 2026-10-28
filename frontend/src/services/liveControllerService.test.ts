@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseActions, parseCheckins } from "./liveControllerService";
+import { parseActions, parseCheckins, parseSettings } from "./liveControllerService";
 
 const action = {
   requestId: "11111111-1111-4111-8111-111111111111",
@@ -32,5 +32,27 @@ describe("live controller history boundary", () => {
       apiCheckedIn: 2, apiAsOf: "2026-10-23T00:00:00Z", canReconcile: true }).checkedIn).toBe(1);
     expect(() => parseCheckins({ mode: "manual", registered: 1, checkedIn: 2,
       apiCheckedIn: 2, apiAsOf: "2026-10-23T00:00:00Z", canReconcile: true })).toThrow();
+  });
+
+  it("accepts administrator audit operations without granting Undo", () => {
+    expect(parseActions({ actions: [{ ...action, kind: "settings", operation: "reset_event",
+      quantity: null, undoEligible: false }, { ...action, kind: "checkin", operation: "set_checkins",
+      quantity: null, value: 20, undoEligible: false }, { ...action, kind: "checkin", quantity: 10 }] }))
+      .toMatchObject([{ kind: "settings", undoEligible: false }, { value: 20, undoEligible: false }, { quantity: 10 }]);
+    expect(() => parseActions({ actions: [{ ...action, kind: "settings", operation: "reset_event",
+      quantity: null, undoEligible: true }] })).toThrow();
+  });
+
+  it("validates settings counts, versions, states, and timestamps at the boundary", () => {
+    const settings = { role: "admin", mode: "manual", syncState: "manual", syncEnabled: false,
+      version: 3, registered: 100, checkedIn: 10, source: "manual", registeredOverride: 100,
+      meetingTarget: 1200, lastSuccessAt: "2026-10-28T08:00:00Z", lastAttemptAt: null,
+      nextSyncAt: null, apiRegistered: 90, apiCheckedIn: 5, error: null, httpStatus: null, canStart: false };
+    expect(parseSettings(settings).version).toBe(3);
+    expect(() => parseSettings({ ...settings, checkedIn: 101 })).toThrow();
+    expect(() => parseSettings({ ...settings, version: -1 })).toThrow();
+    expect(() => parseSettings({ ...settings, registered: 1.5 })).toThrow();
+    expect(() => parseSettings({ ...settings, lastAttemptAt: "invalid" })).toThrow();
+    expect(() => parseSettings({ ...settings, syncState: "retrying" })).toThrow();
   });
 });

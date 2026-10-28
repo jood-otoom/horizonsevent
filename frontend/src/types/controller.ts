@@ -3,15 +3,16 @@ export type CorrectionReason = "duplicate" | "wrong_count" | "wrong_rating" | "o
 
 export interface ControllerAction {
   requestId: string;
-  kind: "meeting" | "feedback" | "checkin";
-  operation?: "submission" | "undo" | "reconcile";
-  quantity: 1 | 2 | 3 | null;
+  kind: "meeting" | "feedback" | "checkin" | "settings";
+  operation?: "submission" | "undo" | "reconcile" | "update_settings" | "reset_event" | "activate_manual" | "start_sync" | "stop_sync" | "set_checkins";
+  quantity: 1 | 2 | 3 | 5 | 10 | null;
   rating: Rating | null;
   value?: number | null;
   originalRequestId?: string | null;
   createdAt: string;
   reversedAt: string | null;
   undoEligible?: boolean;
+  label?: string;
 }
 
 export interface CheckinStatus {
@@ -21,18 +22,51 @@ export interface CheckinStatus {
   apiCheckedIn: number | null;
   apiAsOf: string | null;
   canReconcile: boolean;
+  version?: number;
+  source?: string;
+  manualFallback?: boolean;
+  canSetExact?: boolean;
+}
+
+export type CheckinQuantity = 1 | 2 | 5 | 10;
+
+export interface ControllerSettings {
+  role: "admin" | "staff";
+  mode: "api" | "manual";
+  syncState: "stopped" | "starting" | "running" | "syncing" | "failed" | "manual";
+  syncEnabled: boolean;
+  version: number;
+  registered: number | null;
+  checkedIn: number | null;
+  source: string;
+  registeredOverride: number | null;
+  meetingTarget: number | null;
+  lastSuccessAt: string | null;
+  lastAttemptAt: string | null;
+  nextSyncAt: string | null;
+  apiRegistered: number | null;
+  apiCheckedIn: number | null;
+  error: string | null;
+  httpStatus: number | null;
+  canStart: boolean;
+}
+
+export type SettingsAction =
+  | { kind: "start_sync" | "stop_sync" | "manual_mode" }
+  | { kind: "update_settings"; registeredOverride?: number; meetingTarget?: number }
+  | { kind: "reset_event"; confirmation: "RESET EVENT" };
+
+export type SettingsRequest = SettingsAction & { requestId: string; expectedVersion: number };
+
+export interface SettingsResponse {
+  settings: ControllerSettings;
+  checkins: CheckinStatus;
+  record: { id: string; createdAt: string };
 }
 
 export interface CheckinSubmissionResponse {
   record: { id: string; createdAt: string };
   checkins: CheckinStatus;
-}
-
-export interface ReconcileCheckinsRequest {
-  requestId: string;
-  expectedManual: number;
-  expectedApi: number;
-  expectedApiAt: string;
 }
 
 export interface MeetingRecord {

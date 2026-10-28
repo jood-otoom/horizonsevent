@@ -111,27 +111,38 @@ describe("mock controller provider", () => {
     expect((await service.undoAction(request)).stats.feedbackCount).toBe(1);
   });
 
-  it("keeps manual check-ins distinct from a recovered API count until explicit reconciliation", async () => {
-    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4,
-      registered: 6, recoveredApiCheckins: 5 });
-    const first = await service.submitCheckin({ requestId: "checkin-1" });
-    const retry = await service.submitCheckin({ requestId: "checkin-1" });
-    expect(first.checkins.checkedIn).toBe(5);
-    expect(retry.checkins.checkedIn).toBe(5);
-    expect(retry.checkins.apiCheckedIn).toBe(5);
-    expect(retry.checkins.mode).toBe("manual");
-    const second = await service.submitCheckin({ requestId: "checkin-2" });
-    expect(second.checkins.checkedIn).toBe(6);
-    await expect(service.submitCheckin({ requestId: "checkin-3" })).rejects.toThrow();
-    const undo = await service.undoAction({ requestId: "undo-checkin", originalRequestId: "checkin-2", reason: "duplicate" });
-    expect(undo.reversal.id).toBe("undo-checkin");
-    expect((await service.getCheckins()).checkedIn).toBe(5);
-    expect((await service.getRecentActions()).find(action => action.requestId === "checkin-2")?.reversedAt).not.toBeNull();
-    const current = await service.getCheckins();
-    const reconciled = await service.reconcileCheckins({ requestId: "reconcile", expectedManual: 5,
-      expectedApi: 5, expectedApiAt: current.apiAsOf! });
-    expect(reconciled.checkins.mode).toBe("api");
-    expect((await service.getRecentActions()).find(action => action.requestId === "checkin-1")?.undoEligible).toBe(false);
+  it("requires a confirmed one-way transition before API-mode check-ins", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 20, initialMode: "api" });
+    await expect(service.submitCheckin({ requestId: "blocked" })).rejects.toThrow("Activate Manual Mode");
+    const before = await service.getSettings();
+    await service.updateSettings({ kind: "manual_mode", requestId: "manual", expectedVersion: before.version });
+    const first = await service.submitCheckin({ requestId: "five", quantity: 5 });
+    expect(first.checkins.checkedIn).toBe(9);
+    expect((await service.submitCheckin({ requestId: "five", quantity: 5 })).checkins.checkedIn).toBe(9);
+    const current = await service.getSettings();
+    await expect(service.updateSettings({ kind: "start_sync", requestId: "api", expectedVersion: current.version })).rejects.toThrow("cannot return");
+  });
+
+  it("sets an exact total and rejects stale corrections and capacity violations", async () => {
+    const service = createMockControllerService({ delayMs: 0, initialCheckins: 4, registered: 20 });
+    const before = await service.getCheckins();
+    const result = await service.setCheckins({ requestId: "exact", checkedIn: 10, expectedVersion: before.version! });
+    expect(result.checkins.checkedIn).toBe(10);
+    await expect(service.setCheckins({ requestId: "stale", checkedIn: 12, expectedVersion: before.version! })).rejects.toThrow();
+    await expect(service.submitCheckin({ requestId: "capacity", quantity: 10 })).resolves.toMatchObject({ checkins: { checkedIn: 20 } });
+    await expect(service.submitCheckin({ requestId: "over", quantity: 1 })).rejects.toThrow();
+    expect((await service.getRecentActions()).find(action => action.requestId === "exact")?.undoEligible).toBe(false);
+  });
+
+  it("preserves feedback and target during a confirmed synthetic MATCH/MEET reset", async () => {
+    const service = createMockControllerService({ delayMs: 0 });
+    await service.submitMeeting({ requestId: "meeting", quantity: 3 });
+    await service.submitFeedback({ requestId: "rating", rating: 4 });
+    const settings = await service.getSettings();
+    await service.updateSettings({ kind: "reset_event", requestId: "reset", expectedVersion: settings.version, confirmation: "RESET EVENT" });
+    expect(await service.getStats()).toMatchObject({ completedMeetings: 0, feedbackCount: 1, averageRating: 4 });
+    expect(await service.getSettings()).toMatchObject({ registered: 0, checkedIn: 0, meetingTarget: 1200 });
+    expect((await service.getRecentActions()).some(action => action.operation === "reset_event")).toBe(true);
   });
 
   it("serializes distinct synthetic check-in requests without losing either increment", async () => {

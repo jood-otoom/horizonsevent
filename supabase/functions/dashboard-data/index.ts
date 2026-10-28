@@ -1,6 +1,7 @@
 import { withSupabase } from "@supabase/server";
 import { allowedRole, type MembershipClient } from "../_shared/authorization.ts";
 import { withApprovedOrigin } from "../_shared/cors.ts";
+import { dashboardSourceMode } from "../_shared/publicDashboard.ts";
 import { makeDashboardPayload } from "../_shared/dashboardPayload.ts";
 
 const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request, ctx) => {
@@ -15,11 +16,12 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
   if (!permitted) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  const [aggregate, settings] = await Promise.all([
+  const [aggregate, settings, control] = await Promise.all([
     ctx.supabase.from("dashboard_aggregates").select("event_id,registered,checked_in,check_in_rate,last_successful_sync,meet_failed_at,completed_meetings,feedback_count,rating_sum").eq("event_id", 17135).single(),
     ctx.supabase.from("event_settings").select("event_id,meeting_target,meet_verified,max_meet_age_seconds").eq("event_id", 17135).single(),
+    ctx.supabaseAdmin.from("meet_checkin_control").select("source").eq("event_id", 17135).single(),
   ]);
-  if (aggregate.error || settings.error || !aggregate.data || !settings.data) {
+  if (aggregate.error || settings.error || control.error || !aggregate.data || !settings.data || !control.data) {
     return Response.json({ error: "data_unavailable" }, { status: 503 });
   }
   try {
@@ -27,7 +29,7 @@ const secured = withSupabase({ auth: "user", cors: "disabled" }, async (request,
       aggregate.data,
       settings.data,
       Date.now(),
-      Deno.env.get("B2MATCH_SYNC_ENABLED") === "true" ? "sync" : "snapshot",
+      dashboardSourceMode(control.data),
     ));
   } catch {
     return Response.json({ error: "data_unavailable" }, { status: 503 });

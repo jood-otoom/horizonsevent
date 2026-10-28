@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { allowedRole } from "../functions/_shared/authorization.ts";
-import { parseSubmission } from "../functions/_shared/controllerPayload.ts";
+import { isAdminSubmission, parseSubmission } from "../functions/_shared/controllerPayload.ts";
 import { withApprovedOrigin } from "../functions/_shared/cors.ts";
 
 const requestId = "d60c192d-e138-4b36-a67a-4c29dba3344f";
@@ -43,20 +43,37 @@ describe("Edge request boundaries", () => {
     expect(parseSubmission({ kind: "meeting", eventId: 17135, requestId, quantity: 3 })).toMatchObject({ quantity: 3 });
     expect(parseSubmission({ kind: "feedback", requestId, rating: 5 })).toMatchObject({ rating: 5 });
     expect(parseSubmission({ kind: "checkin", requestId })).toMatchObject({ kind: "checkin" });
-    expect(parseSubmission({ kind: "reconcile_checkins", requestId, expectedManual: 2,
-      expectedApi: 3, expectedApiAt: "2026-10-23T00:00:00Z" })).toMatchObject({ expectedApi: 3 });
+    expect(parseSubmission({ kind: "checkin", requestId, quantity: 10 })).toMatchObject({ quantity: 10 });
+    expect(parseSubmission({ kind: "set_checkins", requestId, checkedIn: 0, expectedVersion: 1 })).toMatchObject({ checkedIn: 0 });
     expect(parseSubmission({ kind: "undo", requestId,
       originalRequestId: "11111111-1111-4111-8111-111111111111", reason: "duplicate" }))
       .toMatchObject({ kind: "undo", reason: "duplicate" });
     expect(() => parseSubmission({ kind: "meeting", eventId: 999, requestId, quantity: 1 })).toThrow();
     expect(() => parseSubmission({ kind: "meeting", requestId, quantity: 4 })).toThrow();
     expect(() => parseSubmission({ kind: "feedback", requestId, rating: 0 })).toThrow();
-    expect(() => parseSubmission({ kind: "reconcile_checkins", requestId, expectedManual: -1,
-      expectedApi: 3, expectedApiAt: "2026-10-23T00:00:00Z" })).toThrow();
+    expect(() => parseSubmission({ kind: "set_checkins", requestId, checkedIn: -1, expectedVersion: 1 })).toThrow();
+    expect(() => parseSubmission({ kind: "checkin", requestId, quantity: 3 })).toThrow();
     expect(() => parseSubmission({ kind: "feedback", requestId: "same", rating: 2 })).toThrow();
     expect(() => parseSubmission({ kind: "undo", requestId,
       originalRequestId: requestId, reason: "duplicate" })).toThrow();
     expect(() => parseSubmission({ kind: "undo", requestId,
       originalRequestId: "11111111-1111-4111-8111-111111111111", reason: "unreviewed" })).toThrow();
+  });
+  it("requires bounded integers, exact confirmation and versions for admin operations", () => {
+    for (const kind of ["start_sync", "stop_sync", "manual_mode"]) {
+      const parsed = parseSubmission({ kind, requestId, expectedVersion: 2 });
+      expect(isAdminSubmission(parsed)).toBe(true);
+      expect(() => parseSubmission({ kind, requestId })).toThrow();
+    }
+    expect(isAdminSubmission(parseSubmission({ kind: "checkin", requestId }))).toBe(false);
+    expect(parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2,
+      registeredOverride: 0, meetingTarget: 1500 })).toMatchObject({ registeredOverride: 0, meetingTarget: 1500 });
+    for (const registeredOverride of [-1, 1.5, "", null, 2_147_483_648]) {
+      expect(() => parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2, registeredOverride })).toThrow();
+    }
+    expect(() => parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2 })).toThrow();
+    expect(() => parseSubmission({ kind: "update_settings", requestId, expectedVersion: 2, meetingTarget: 0 })).toThrow();
+    expect(() => parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "reset event" })).toThrow();
+    expect(parseSubmission({ kind: "reset_event", requestId, expectedVersion: 2, confirmation: "RESET EVENT" })).toMatchObject({ kind: "reset_event" });
   });
 });

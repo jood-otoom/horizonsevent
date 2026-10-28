@@ -1,4 +1,4 @@
-import type { ControllerService } from "./controllerService";
+import { ControllerConflictError, type ControllerService } from "./controllerService";
 import type {
   ControllerAction,
   ControllerStats,
@@ -8,6 +8,8 @@ import type {
   MeetingRecord,
   MeetingSubmissionRequest,
   Rating,
+  ControllerSettings,
+  SettingsRequest,
 } from "../types/controller";
 
 interface MockOptions {
@@ -18,6 +20,8 @@ interface MockOptions {
   initialCheckins?: number;
   registered?: number;
   recoveredApiCheckins?: number;
+  initialMode?: "api" | "manual";
+  role?: "staff" | "admin";
 }
 
 export function createMockControllerService(options: MockOptions = {}): ControllerService {
@@ -28,11 +32,16 @@ export function createMockControllerService(options: MockOptions = {}): Controll
   const actions: ControllerAction[] = [];
   const auditEvents: ControllerAction[] = [];
   const reversals = new Map<string, { requestId: string; reason: string; createdAt: string }>();
-  const reconciliations = new Map<string, { record: { id: string; createdAt: string }; expectedManual: number; expectedApi: number; expectedApiAt: string }>();
   const checkinRequests = new Map<string, { id: string; createdAt: string }>();
-  const registered = options.registered ?? 120;
+  const checkinPayloads = new Map<string, string>();
+  let registered = options.registered ?? 120;
   let checkedIn = options.initialCheckins ?? 35;
-  let mode: CheckinStatus["mode"] = "api";
+  let mode: CheckinStatus["mode"] = options.initialMode ?? "manual";
+  let version = 0;
+  let meetingTarget = 1200;
+  let registeredOverride: number | null = null;
+  let syncState: ControllerSettings["syncState"] = mode === "manual" ? "manual" : "stopped";
+  const settingsRequests = new Map<string, SettingsRequest>();
   let sessionStart: string | null = null;
   let apiCheckedIn = checkedIn;
   let apiAsOf = new Date().toISOString();
@@ -72,7 +81,20 @@ export function createMockControllerService(options: MockOptions = {}): Controll
 
   function checkins(): CheckinStatus {
     return { mode, registered, checkedIn, apiCheckedIn, apiAsOf,
-      canReconcile: mode === "manual" && options.recoveredApiCheckins !== undefined };
+      canReconcile: false, version, source: mode === "manual" ? "manual" : "api",
+      manualFallback: mode === "manual", canSetExact: (options.role ?? "admin") === "admin" };
+  }
+
+  function settings(): ControllerSettings {
+    return { role: options.role ?? "admin", mode, syncState, syncEnabled: syncState === "running",
+      version, registered, checkedIn, source: mode === "manual" ? "manual" : "api", registeredOverride,
+      meetingTarget, lastSuccessAt: apiAsOf, lastAttemptAt: null, nextSyncAt: null,
+      apiRegistered: options.registered ?? 120, apiCheckedIn, error: null, httpStatus: null,
+      canStart: mode === "api" && syncState !== "running" };
+  }
+
+  function assertAdmin() {
+    if (options.role === "staff") throw new Error("Settings and exact-total corrections are available to event administrators only.");
   }
 
   return {
@@ -86,23 +108,26 @@ export function createMockControllerService(options: MockOptions = {}): Controll
       return [...actions, ...auditEvents]
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.requestId.localeCompare(a.requestId))
         .slice(0, 5).map((action) => ({ ...action,
-          undoEligible: action.operation !== "undo" && action.operation !== "reconcile" &&
+          undoEligible: action.undoEligible !== false && (action.operation === undefined || action.operation === "submission") &&
             action.reversedAt === null && (action.kind !== "checkin" || mode === "manual" &&
               action.createdAt >= (sessionStart ?? "")) }));
     },
     async getCheckins() { await wait(); return checkins(); },
-    async submitCheckin({ requestId }) {
+    async submitCheckin({ requestId, quantity = 1 }) {
       assertRequestId(requestId);
       await wait();
       maybeFail("checkin");
       let record = checkinRequests.get(requestId);
+      if (record && checkinPayloads.get(requestId) !== JSON.stringify({ quantity })) throw new Error("Request conflict.");
       if (!record) {
-        if (checkedIn >= registered) throw new Error("Attendance at capacity.");
+        if (mode !== "manual") throw new Error("Activate Manual Mode in Settings before updating check-ins.");
+        if (![1, 2, 5, 10].includes(quantity) || checkedIn + quantity > registered) throw new Error("Attendance at capacity.");
         record = { id: requestId, createdAt: new Date().toISOString() };
-        if (mode === "api") { mode = "manual"; sessionStart = record.createdAt; }
         checkinRequests.set(requestId, record);
-        checkedIn++;
-        actions.push({ requestId, kind: "checkin", quantity: 1, rating: null,
+        checkinPayloads.set(requestId, JSON.stringify({ quantity }));
+        checkedIn += quantity;
+        version++;
+        actions.push({ requestId, kind: "checkin", quantity, rating: null,
           createdAt: record.createdAt, reversedAt: null });
         if (options.recoveredApiCheckins !== undefined) {
           apiCheckedIn = options.recoveredApiCheckins;
@@ -111,28 +136,65 @@ export function createMockControllerService(options: MockOptions = {}): Controll
       }
       return { record, checkins: checkins() };
     },
-    async reconcileCheckins({ requestId, expectedManual, expectedApi, expectedApiAt }) {
+    async setCheckins({ requestId, checkedIn: value, expectedVersion }) {
+      assertAdmin();
       assertRequestId(requestId);
       await wait();
-      const prior = reconciliations.get(requestId);
-      if (prior) {
-        if (prior.expectedManual !== expectedManual || prior.expectedApi !== expectedApi ||
-            prior.expectedApiAt !== expectedApiAt) throw new Error("Request conflict.");
-        return { record: prior.record, checkins: checkins() };
+      const previous = checkinRequests.get(requestId);
+      if (previous) {
+        if (checkinPayloads.get(requestId) !== JSON.stringify({ checkedIn: value, expectedVersion })) throw new Error("Request conflict.");
+        return { record: previous, checkins: checkins() };
       }
-      if (mode !== "manual" || options.recoveredApiCheckins === undefined ||
-          expectedManual !== checkedIn || expectedApi !== apiCheckedIn || expectedApiAt !== apiAsOf) {
-        throw new Error("Reconciliation conflict.");
+      if (mode !== "manual" || expectedVersion !== version || !Number.isSafeInteger(value) || value < 0 || value > registered) {
+        throw new ControllerConflictError("The event values changed or the total is invalid. Refresh before trying again.");
       }
-      checkedIn = apiCheckedIn;
-      mode = "api";
-      sessionStart = null;
-      const record = { id: requestId, createdAt: new Date().toISOString() };
-      reconciliations.set(requestId, { record, expectedManual, expectedApi, expectedApiAt });
-      auditEvents.push({ requestId, kind: "checkin", operation: "reconcile", quantity: null,
-        rating: null, value: apiCheckedIn, createdAt: record.createdAt, reversedAt: null,
-        undoEligible: false });
+      checkedIn = value;
+      version++;
+      sessionStart = new Date().toISOString();
+      const record = { id: requestId, createdAt: sessionStart };
+      checkinRequests.set(requestId, record);
+      checkinPayloads.set(requestId, JSON.stringify({ checkedIn: value, expectedVersion }));
+      auditEvents.push({ requestId, kind: "checkin", operation: "set_checkins", value, quantity: null, rating: null,
+        label: `Set checked-in total to ${value}`, createdAt: record.createdAt, reversedAt: null, undoEligible: false });
       return { record, checkins: checkins() };
+    },
+    async getSettings() { await wait(); assertAdmin(); return settings(); },
+    async updateSettings(request) {
+      assertAdmin();
+      assertRequestId(request.requestId);
+      await wait();
+      const prior = settingsRequests.get(request.requestId);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(request)) throw new Error("Request conflict.");
+      if (!prior) {
+        if (request.expectedVersion !== version) throw new ControllerConflictError("The event values changed. Refresh the latest values before trying again.");
+        if (request.kind === "start_sync") {
+          if (mode === "manual") throw new Error("Manual Mode cannot return to API mode.");
+          syncState = "running";
+        } else if (request.kind === "stop_sync") syncState = "stopped";
+        else if (request.kind === "manual_mode") { mode = "manual"; syncState = "manual"; }
+        else if (request.kind === "update_settings") {
+          if (request.registeredOverride !== undefined) {
+            if (!Number.isSafeInteger(request.registeredOverride) || request.registeredOverride < checkedIn) throw new Error("Registered participants cannot be below checked-in participants.");
+            registered = request.registeredOverride;
+            registeredOverride = registered;
+          }
+          if (request.meetingTarget !== undefined) {
+            if (!Number.isSafeInteger(request.meetingTarget) || request.meetingTarget <= 0) throw new Error("Meeting target must be a positive integer.");
+            meetingTarget = request.meetingTarget;
+          }
+        } else if (request.kind === "reset_event") {
+          if (request.confirmation !== "RESET EVENT") throw new Error("Confirmation required.");
+          meetings.splice(0);
+          actions.filter(action => action.kind === "meeting" || action.kind === "checkin").forEach(action => { action.undoEligible = false; });
+          registered = 0; checkedIn = 0; registeredOverride = null; syncState = "stopped";
+        }
+        version++;
+        settingsRequests.set(request.requestId, request);
+        auditEvents.push({ requestId: request.requestId, kind: "settings",
+          operation: request.kind === "manual_mode" ? "activate_manual" : request.kind,
+          quantity: null, rating: null, createdAt: new Date().toISOString(), reversedAt: null, undoEligible: false });
+      }
+      return { settings: settings(), checkins: checkins(), record: { id: request.requestId, createdAt: new Date().toISOString() } };
     },
     async submitMeeting({ requestId, quantity = 1 }: MeetingSubmissionRequest) {
       assertRequestId(requestId);
@@ -205,7 +267,9 @@ export function createMockControllerService(options: MockOptions = {}): Controll
         feedback.splice(index, 1);
       } else {
         if (mode !== "manual" || action.createdAt < (sessionStart ?? "")) throw new Error("Reconciliation conflict.");
-        checkedIn--;
+        if (action.operation === "set_checkins" || action.undoEligible === false) throw new Error("This action cannot be undone.");
+        checkedIn -= action.quantity ?? 1;
+        version++;
       }
       const createdAt = new Date().toISOString();
       action.reversedAt = createdAt;
