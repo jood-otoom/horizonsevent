@@ -1,5 +1,15 @@
 # Deployment and local operations
 
++## October 29 B2Match cadence change — database applied
+
+The owner requested 30-second full-participant polling and reports B2Match approval. No provider quota artifact is stored in this repository. The hosted API-mode session was already Running, with generation 5 and a 120-second next due time, before the change. The forward migration `20261029060719_b2match_30_second_cadence.sql` was applied through the Supabase connector as hosted migration version `20261029060719`; it replaces only `public.claim_meet_sync` and leaves the existing due timestamp, Cron's 10-second wake-up, event rows, and credentials unchanged. The next newly claimed run schedules 30 seconds from its start. A lease prevents overlap, and a slow pull or Cron wake-up can delay the actual start.
+
+Read-only postflight confirmed the new function contains the 30-second interval, excludes the old 120-second interval, denies `anon`/`authenticated` execution, and retains `service_role` execution. The first postmigration claim started at 06:09:12 UTC with an exact 30-second stored due gap; the next started at 06:09:51 UTC. Both succeeded. MEET checked-in changed from 12 to 15 between those observations through the already-running B2Match session; the migration itself did not write counters. MATCH and GROW remained zero at the last read. The controller wording release is prepared separately from the unreleased map work; record its production artifact and browser result only after it actually deploys.
+
+Rollback: if upstream failures or unexpected counts appear, use the existing authenticated Stop Sync control to preserve last-good values, then inspect API and run history. A cadence rollback needs a reviewed forward migration restoring the 120-second due assignment; do not delete this migration or reset event counters. A frontend-only rollback restores the prior Pages deployment. The original function body remains in `20261028192045_event_operations_and_sync.sql` for comparison.
+
+
+
 ## October 29 map and icon refresh — prepared locally, not deployed
 
 The `/map` candidate reads the Git-tracked `Map Data.xlsx` visible sheet through `scripts/prepare_map_dashboard_data.py` and bundles only aggregate JSON. The workbook also contains legacy identifying fields and its existing Git exposure needs review before release. The owner approved one row as one startup and interprets `Staff Delta` as current employees; those meanings are not independently encoded by source IDs. The old 265 cohort remains in the hidden legacy sheet and in the previously published frontend. All 12 governorate totals must reconcile to the candidate's 666 national total before publication. The static frontend does not mutate the hosted `map_dashboard_snapshot` row or any event KPI, controller, authentication, Supabase setting, or b2match synchronization state. The two public routes use the newly supplied local PNG icons; verify that their files are included in a production build.

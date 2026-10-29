@@ -34,6 +34,8 @@ begin
   if(select count(*) from net.readiness_mock_requests)<>1 then raise exception 'duplicate_dispatch'; end if;
   run_id:=gen_random_uuid();tok:=gen_random_uuid();
   if not public.claim_meet_sync(17135,run_id,tok) then raise exception 'claim_failed'; end if;
+  if (select next_sync_at-last_attempt_at from public.meet_checkin_control where event_id=17135)<>interval '30 seconds'
+    then raise exception 'scheduler_cadence_not_30_seconds'; end if;
   -- Resetting staff metrics must not cancel or alter an in-flight attendance sync.
   perform public.record_meetings(17135,gen_random_uuid(),a,1::smallint);
   perform public.record_feedback(17135,gen_random_uuid(),a,4::smallint);

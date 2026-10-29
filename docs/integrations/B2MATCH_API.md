@@ -2,7 +2,7 @@
 
 The application reads event `17135` through the fixed server-side `https://api.b2match.com/public/participants` endpoint. The B2Match token stays in Supabase Edge secrets. The frontend never calls the external API, receives credentials, or ingests participant-level data.
 
-The October 28 worker/verifier source is deployed for manually started server-side synchronization every 120 seconds. Read-only downloads of `sync-b2match` v28 and `verify-b2match` v30 matched their complete returned local source/configuration files, including the shared parser. Read-only SQL confirmed `pg_cron` 1.6.4, `pg_net` 0.20.4, the guarded 10-second scheduler job, Stopped API mode, and zero runs/leases. Deployment status, secret provisioning, frontend verification, and bundle hashes are recorded in [the deployment guide](../deployment/DEPLOYMENT.md). No real B2Match invocation was made in this verification. Automatic synchronization must remain stopped during deployment and testing; deployed source is not evidence of a successful live pull.
+The October 28 deployment installed the worker/verifier source and 120-second due times for manually started server synchronization. The October 29 forward migration now sets due times 30 seconds from each newly claimed start; the hosted session was running when it was applied. Read-only downloads of `sync-b2match` v28 and `verify-b2match` v30 matched their complete returned local source/configuration files, including the shared parser. Earlier read-only SQL confirmed `pg_cron` 1.6.4, `pg_net` 0.20.4, the guarded 10-second scheduler job, Stopped API mode, and zero runs/leases; that stopped-state observation is historical. Deployment status, secret provisioning, frontend verification, and bundle hashes are recorded in [the deployment guide](../deployment/DEPLOYMENT.md).
 
 ## Verified contract and historical evidence
 
@@ -30,7 +30,7 @@ No incremental `updated_since` query is used because registration-answer changes
 
 ## Start, schedule, stop, and failure
 
-An administrator starts through authenticated `controller-submit`. The database checks role/version, persists running state, and dispatches immediately through `pg_net`. The `pg_cron` dispatcher checks the durable due time for subsequent 120-second starts. At most one worker may own the event lease. The controller tab can close without stopping server scheduling.
+An administrator starts through authenticated `controller-submit`. The database checks role/version, persists running state, and dispatches immediately through `pg_net`. Each claimed run sets the next due time 30 seconds later; the `pg_cron` dispatcher wakes every ten seconds and checks that durable time. At most one worker may own the event lease, so a slow pull can delay the next start and missed intervals do not trigger catch-up runs. The controller tab can close without stopping server scheduling.
 
 Worker calls use a dedicated random `B2MATCH_WORKER_SECRET` matched to Vault `nh_b2match_worker_secret`, sent as `x-b2match-worker-secret`. This is separate from public browser keys and Supabase service-role credentials. The old environment sync flag no longer controls start/stop or source labels; durable database state is authoritative. The event-ID environment guard remains fixed at 17135.
 
@@ -46,6 +46,6 @@ The public dashboard continues to show effective aggregate values and the existi
 
 ## Operational limits and remaining verification
 
-The owner requests the 120-second cadence for October 29. Official B2Match quota/permission and new-registration/check-in propagation latency must be confirmed with the provider or authoritative event access; do not infer them from a successful API call. At the historical five-page size, a run would make five requests with this no-retry policy. Actual page volume can change.
+The owner now requests a 30-second cadence and reports B2Match approval. The repository has no provider quota artifact, so that approval is owner-reported rather than independently documented here. New-registration/check-in propagation latency remains to be measured; do not infer it from a successful API call. At the historical five-page size, a fast 30-second cadence would make about ten upstream requests per minute; actual page volume and run duration can change.
 
 Before the operator starts a live session, confirm current portal/API parity, real entrance scan semantics, B2Match quota, Supabase scheduler/worker support, and the latest production rehearsal results. Mock tests verify failure paths without deliberately rate-limiting B2Match. The critical reset must be tested against isolated data only and must never run on live event counters without explicit owner approval. See [API contracts](../backend/API_CONTRACTS.md), [event runbook](../operations/EVENT_DAY_RUNBOOK.md), and [test strategy](../testing/TEST_STRATEGY.md).

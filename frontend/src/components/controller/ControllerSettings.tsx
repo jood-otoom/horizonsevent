@@ -115,7 +115,7 @@ export default function ControllerSettings({ open, service, onClose, onSaved }: 
       request.current = null;
       setReview(null); setConfirmation("");
       setMessage(completed === "stop_sync" ? "Sync stopped. Last fetched totals are preserved." :
-        completed === "start_sync" ? "Sync started. Fetching now, then every two minutes." :
+        completed === "start_sync" ? "Sync started. Fetching now, then about every 30 seconds." :
           completed === "reset_event" ? "MATCH and GROW totals reset. MEET attendance is unchanged." : "Saved. The dashboard is updating.");
       onSaved();
     } catch (cause) {
@@ -181,8 +181,8 @@ export default function ControllerSettings({ open, service, onClose, onSaved }: 
                 </div>
               </div>
               <p className="controller-settings-note">{manual ? "API sync is disabled for this event session." :
-                active ? "Fetches every two minutes, even when this tab is closed. Stop keeps your current totals." :
-                  "Start fetches immediately, then every two minutes. Any API failure stops sync automatically."}</p>
+                active ? "Fetches about every 30 seconds, even when this tab is closed. Stop keeps your current totals." :
+                  "Start fetches immediately, then about every 30 seconds. Any API failure stops sync automatically."}</p>
               {settings.error && <p className="controller-message-error" role="alert">{settings.error}</p>}
               {!manual && !active && !settings.canStart && <p role="status">Start Sync is unavailable in the current server configuration.</p>}
               <dl className="controller-settings-details">

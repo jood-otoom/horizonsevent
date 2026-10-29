@@ -75,8 +75,8 @@ begin
   if not public.complete_meet_sync(run1,tok1,200,20,4,200) then raise exception 'verified_publication_failed'; end if;
   if(select registered from public.dashboard_aggregates where event_id=17135)<>250 or
     (select registered from public.meet_snapshots order by last_successful_sync desc limit 1)<>200 then raise exception 'api_overwrote_registration_override'; end if;
-  if public.claim_meet_sync(17135,gen_random_uuid(),gen_random_uuid()) then raise exception 'two_minute_cadence_ignored'; end if;
-  if(select next_sync_at-last_attempt_at from public.meet_checkin_control where event_id=17135)<>interval '120 seconds' then raise exception 'cadence_not_120_seconds'; end if;
+  if public.claim_meet_sync(17135,gen_random_uuid(),gen_random_uuid()) then raise exception '30_second_cadence_ignored'; end if;
+  if(select next_sync_at-last_attempt_at from public.meet_checkin_control where event_id=17135)<>interval '30 seconds' then raise exception 'cadence_not_30_seconds'; end if;
   -- A failed complete pull stops the schedule, preserves counts, and records only safe errors.
   update public.meet_checkin_control set next_sync_at=clock_timestamp()-interval '1 second' where event_id=17135;
   if not public.claim_meet_sync(17135,run2,tok2) then raise exception 'second_claim_failed'; end if;

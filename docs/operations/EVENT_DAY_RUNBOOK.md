@@ -2,11 +2,11 @@
 
 ## Release and pre-event checks
 
-This runbook describes the October 28 deployed function/schema implementation for October 29. Read-only source/configuration checks matched all five hosted functions to the local release; SQL confirmed the scheduler job, Stopped API mode, and zero runs/leases. These checks did not invoke B2Match or modify counters. Check [deployment evidence](../deployment/DEPLOYMENT.md) for the frontend release, secret provisioning, behavioral test results, current counters, and any blocker. Do not treat historical API snapshots as current attendance or source code as proof of deployment.
+This runbook describes the deployed function/schema implementation for October 29. Read-only source/configuration checks matched all five hosted functions to the local release; the scheduler job was confirmed. The older Stopped API mode and zero runs/leases observation is historical; the session was Running when the 30-second cadence migration was applied. Check [deployment evidence](../deployment/DEPLOYMENT.md) for the frontend release, secret provisioning, behavioral test results, current counters, and any blocker. Do not treat historical API snapshots as current attendance or source code as proof of deployment.
 
 Before operators rely on it, open [the public dashboard](https://horizonsevent.pages.dev/) and [the controller](https://horizonsevent.pages.dev/controller). Confirm the correct event/project, equal effective MEET/MATCH/GROW values, current MATCH target, public accessibility, controller authentication, and admin Settings access. Confirm the Check-ins Controller expands without an availability error. Record the designated operator, owner/escalation contact, last trusted counts, and verified recovery options. Confirm the provider's permitted API cadence and current portal/API counting parity before the operator starts a live session.
 
-Deployment and smoke testing must leave automatic synchronization stopped and preserve production counters/GROW. The critical reset button must not be invoked on the live event during testing. Owner-approved isolated tests establish reset behavior; they do not clear production testing data.
+Cadence deployment changes only the worker claim function; it does not require starting, stopping, or resetting the currently running session. Preserve production counters/GROW during smoke testing. The critical reset button must not be invoked on the live event during testing. Owner-approved isolated tests establish reset behavior; they do not clear production testing data.
 
 ## Settings and permissions
 
@@ -19,7 +19,7 @@ Production uses the existing single operator account, now approved as administra
 ## Start or stop B2Match synchronization
 
 1. In Settings select **Sync & attendance** and review the current state and last successful API counts. **Start Sync** is available only in API mode with verified scheduler configuration. It is disabled permanently after Manual Mode is activated for this session.
-2. Click **Start Sync** once. The server persists the session and fetches immediately; subsequent starts are due every 120 seconds, with up to 10 seconds of scheduler wake-up delay. The controller may be closed after the request is confirmed. It is not the scheduler.
+2. Click **Start Sync** once. The server persists the session and fetches immediately. Subsequent starts are due 30 seconds from each claimed start, with up to 10 seconds of scheduler wake-up delay. An active worker blocks overlap, so a slow pull can delay the next start. The controller may be closed after the request is confirmed. It is not the scheduler.
 3. Watch Starting/Syncing become Running and confirm a new successful timestamp and appropriate MEET totals. A complete API pull uses the established registration and event-entrance rules. It never derives completed meetings or ratings from B2Match.
 4. To pause intentionally, click **Stop Sync** and wait for Stopped. Last valid values remain displayed. The database fences in-flight and delayed queued work, so old results cannot publish after stop. An administrator may explicitly start a new API session while still in API mode; there is no automatic restart.
 

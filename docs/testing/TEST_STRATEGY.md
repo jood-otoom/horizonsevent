@@ -1,5 +1,11 @@
 # Test strategy
 
+## October 29 30-second B2Match cadence
+
+The forward migration replaces only the due-time assignment in `claim_meet_sync`. Synthetic SQL fixtures now assert `next_sync_at - last_attempt_at = 30 seconds` and retain overlap, stop, watchdog, reset, and permissions checks. The isolated PGlite runner includes the new migration by its hosted version. Its execution was blocked here because `@electric-sql/pglite@0.3.14` is absent and the temporary package install could not resolve the npm registry; do not report those SQL suites as passed. Frontend Vitest passed 136 tests, Supabase Vitest passed 65 tests, and workspace TypeScript, ESLint, and the production build passed. A clean `origin/main` mirror with only the controller text/test change passed its 19 controller Settings tests, ESLint, TypeScript build, and Vite build. The Vite build reported the existing nonfatal chunk-size warning.
+
+Hosted read-only postflight verified migration history version `20261029060719`, the new 30-second function body, unchanged browser-role denials and service-role execution, and an exact 30-second stored due gap on the first newly claimed run. Two successive live runs succeeded, starting at 06:09:12 and 06:09:51 UTC; the latter reflects the existing 10-second Cron wake-up tolerance. This is a cadence observation, not a portal/API parity or physical-screen test. The session was already active; no test operation started, stopped, or reset it.
+
 ## October 29 map workbook and approved icon refresh — local release candidate
 
 The current local `/map` tests must reconcile the visible support-measures sheet to 666 owner-confirmed distinct rows, 12 governorates, 427 female-led and 239 male-led startups, 192 employing startups, 628 employees under the owner's `Staff Delta` definition, and 22 missing or unmapped sector values. The import rejects malformed counts, unknown governorates and unsupported gender values, then cross-checks its aggregate against the visible formula-derived map sheet. Because source rows have no identifiers, the tests cannot independently prove uniqueness. Check the seven classified sector categories against the full 666 denominator and preserve the unclassified remainder. The hidden legacy 265 cohort is historical and must not drive the current UI.
