@@ -73,15 +73,13 @@ export function EmploymentCard({ summary }: { summary: MapSummary }) {
 
 export function SectorsGrid({ summary }: { summary: MapSummary }) {
   const percentages = sectorPercentages(summary);
-  const visibleSectors = MAP_SECTORS.filter(sector => sector.id !== "other");
-  const maxPercentage = Math.max(0, ...visibleSectors.map(sector => percentages[sector.id]));
+  const maxPercentage = Math.max(0, ...MAP_SECTORS.map(sector => percentages[sector.id]));
   return <section className="map-stat-card map-sectors-card" aria-labelledby="map-sectors-title">
     <div className="map-sectors-head">
       <h2 id="map-sectors-title">Sectors</h2>
-      {summary.sectors.other > 0 && <p className="map-sector-note">{summary.sectors.other.toLocaleString("en-US")} {summary.sectors.other === 1 ? "startup has" : "startups have"} unclassified sector data</p>}
     </div>
-    <div className="map-sector-grid" data-count={visibleSectors.length}>
-      {visibleSectors.map(sector => {
+    <div className="map-sector-grid">
+      {MAP_SECTORS.map(sector => {
         const count = summary.sectors[sector.id];
         const ratio = maxPercentage ? percentages[sector.id] / maxPercentage : 0;
         // Two contrast-safe ramps keep small text legible as cards move from blush to crimson.
