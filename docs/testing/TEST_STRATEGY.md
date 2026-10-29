@@ -1,14 +1,16 @@
 # Test strategy
 
-+## October 29 30-second B2Match cadence
+## October 29 30-second B2Match cadence
 
 The forward migration replaces only the due-time assignment in `claim_meet_sync`. Synthetic SQL fixtures now assert `next_sync_at - last_attempt_at = 30 seconds` and retain overlap, stop, watchdog, reset, and permissions checks. The isolated PGlite runner includes the new migration by its hosted version. Its execution was blocked here because `@electric-sql/pglite@0.3.14` is absent and the temporary package install could not resolve the npm registry; do not report those SQL suites as passed. Frontend Vitest passed 136 tests, Supabase Vitest passed 65 tests, and workspace TypeScript, ESLint, and the production build passed. A clean `origin/main` mirror with only the controller text/test change passed its 19 controller Settings tests, ESLint, TypeScript build, and Vite build. The Vite build reported the existing nonfatal chunk-size warning.
 
 Hosted read-only postflight verified migration history version `20261029060719`, the new 30-second function body, unchanged browser-role denials and service-role execution, and an exact 30-second stored due gap on the first newly claimed run. Two successive live runs succeeded, starting at 06:09:12 and 06:09:51 UTC; the latter reflects the existing 10-second Cron wake-up tolerance. This is a cadence observation, not a portal/API parity or physical-screen test. The session was already active; no test operation started, stopped, or reset it.
 
+A later read-only check at 06:14:08 UTC found Running state, no lease, a successful latest six-page run, the exact 30-second stored due gap, and 239 registered / 16 checked in. The clean production-branch release clone passed its full 136 frontend and 65 Supabase tests, lint, frontend/backend TypeScript checks, and Vite build. An earlier automatic approval review blocked the direct production push; the owner then explicitly requested publishing all changes, and GitHub `main` was verified at commit `af2b9a3`. The production Pages JavaScript asset matched the tested build byte for byte by SHA-256 and contained the new 30-second wording; authenticated Settings UI was not exercised in the read-only check.
 
 
-## October 29 final map UI refinements — local only
+
+## October 29 final map UI refinements — not production deployed
 
 The current sector display renders all eight `MAP_SECTORS` buckets. The visible sheet and bundled snapshot still reconcile to 666 startups; seven classified categories total 644 and `Other` contains 22. Largest-remainder percentage rounding shows `Other` as 3% nationally. A selected governorate reads its own `other` count and denominator; a read-only Karak browser selection showed 5 of 101 startups in `Other` (5%), and Show all restored 22 of 666 (3%). Source classification, workbook import, governorate map geometry, pins, Gender, Employment, and main dashboard KPI logic were not changed.
 
