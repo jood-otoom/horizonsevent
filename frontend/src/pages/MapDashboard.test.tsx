@@ -1,171 +1,129 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import mapSnapshotData from "../data/mapSnapshot.json";
+import { sectorPercentages, wholePercentages } from "../lib/mapMetrics";
+import { MAP_GOVERNORATE_IDS, MAP_SECTORS, type MapSnapshot, type MapSummary } from "../types/map";
 import MapDashboard from "./MapDashboard";
-import { MAP_GOVERNORATE_IDS, MAP_SECTORS } from "../types/map";
 
 afterEach(cleanup);
 
-const expected = {
-  all: {
-    name: "All Governorates", total: 265, gender: "142 female participants, 123 male participants",
-    percentages: [54, 46], employment: [142, 762], stages: [150, 91, 24],
-    sectors: [5, 12, 34, 5, 19, 17, 8, 0],
-  },
-  aqaba: {
-    name: "Aqaba", total: 84, gender: "44 female participants, 40 male participants",
-    percentages: [52, 48], employment: [36, 173], stages: [44, 36, 4],
-    sectors: [5, 4, 30, 2, 27, 24, 8, 0],
-  },
-  amman: {
-    name: "Amman", total: 22, gender: "2 female participants, 20 male participants",
-    percentages: [9, 91], employment: [17, 144], stages: [0, 7, 15],
-    sectors: [18, 18, 18, 5, 14, 27, 0, 0],
-  },
-  ajlun: {
-    name: "Ajloun", total: 14, gender: "9 female participants, 5 male participants",
-    percentages: [64, 36], employment: [9, 35], stages: [14, 0, 0],
-    sectors: [0, 7, 36, 0, 0, 0, 57, 0],
-  },
-  mafraq: {
-    name: "Mafraq", total: 44, gender: "33 female participants, 11 male participants",
-    percentages: [75, 25], employment: [17, 93], stages: [21, 22, 1],
-    sectors: [5, 27, 39, 7, 4, 16, 2, 0],
-  },
-} as const;
-type Expected = typeof expected[keyof typeof expected];
+const snapshot = mapSnapshotData as MapSnapshot;
+const classifiedSectors = MAP_SECTORS.filter(sector => sector.id !== "other");
 
-function textValues(container: Element, selector: string): string[] {
+function texts(container: Element, selector: string): string[] {
   return [...container.querySelectorAll(selector)].map(element => element.textContent?.trim() ?? "");
 }
 
-function expectStatistics(container: HTMLElement, values: Expected) {
+function expectStatistics(container: HTMLElement, name: string, summary: MapSummary) {
   const panel = container.querySelector(".map-statistics")!;
-  const total = panel.querySelector(".map-total-card")!;
-  expect(total.querySelector(".map-selection span")?.textContent).toBe(values.name);
-  expect(panel.textContent?.match(new RegExp(values.name, "g"))).toHaveLength(1);
-  expect(total.querySelector(".map-total-figure strong")?.textContent).toBe(String(values.total));
-  expect(total.querySelector("#map-total-title")?.textContent).toBe("Total number of startups");
+  expect(panel.querySelector(".map-selection span")?.textContent).toBe(name);
+  expect(panel.querySelector(".map-total-figure strong")?.textContent).toBe(summary.total.toLocaleString("en-US"));
 
   const gender = panel.querySelector(".map-gender-card")!;
-  expect(gender.querySelector(".map-gender-bar")?.getAttribute("aria-label")).toBe(values.gender);
-  expect(textValues(gender, ".map-gender-segment strong")).toEqual(values.percentages.map(value => String(value) + "%"));
-  expect(textValues(gender, ".map-gender-labels span")).toEqual(["Female participants", "Male participants"]);
+  const percentages = wholePercentages(summary.gender, ["female", "male", "unknown"]);
+  expect(gender.querySelector(".map-metric-pair")?.getAttribute("aria-label")).toContain(`${summary.gender.female} female-led startups, ${summary.gender.male} male-led startups`);
+  expect(texts(gender, ".map-metric-segment strong")).toEqual([`${percentages.female}%`, `${percentages.male}%`]);
+  expect(texts(gender, ".map-metric-segment > span:last-child")).toEqual(["Female-led", "Male-led"]);
 
   const employment = panel.querySelector(".map-employment-card")!;
-  expect(textValues(employment, ".map-employment-metrics strong")).toEqual(values.employment.map(String));
-  expect(employment.textContent).toContain("startups");
-  expect(employment.textContent).toContain("total employees");
+  expect(texts(employment, ".map-metric-segment strong")).toEqual([
+    String(summary.employment.startupsWithEmployees), String(summary.employment.totalEmployees),
+  ]);
+  expect(texts(employment, ".map-metric-segment > span:last-child")).toEqual(["Startups employing", "Total employees"]);
+  expect(gender.querySelector(".map-metric-pair")?.className).toBe(employment.querySelector(".map-metric-pair")?.className);
 
-  const stages = panel.querySelector(".map-stage-journey")!;
-  expect(textValues(stages, ".map-stage-step > div > span")).toEqual(["Acceleration", "Go to Market", "Grow+"]);
-  expect(textValues(stages, ".map-stage-step strong")).toEqual(values.stages.map(String));
-
-  const sectors = panel.querySelector(".map-sector-grid")!;
-  expect(textValues(sectors, ".map-sector > div > span")).toEqual(MAP_SECTORS.map(sector => sector.label));
-  expect(textValues(sectors, ".map-sector strong")).toEqual(values.sectors.map(value => String(value) + "%"));
-  expect(values.sectors.reduce<number>((sum, value) => sum + value, 0)).toBe(100);
+  const sectors = panel.querySelector(".map-sectors-card")!;
+  const sectorPercents = sectorPercentages(summary);
+  expect(texts(sectors, ".map-sector > div > span")).toEqual(classifiedSectors.map(sector => sector.label));
+  expect(texts(sectors, ".map-sector strong")).toEqual(classifiedSectors.map(sector =>
+    summary.sectors[sector.id] > 0 && sectorPercents[sector.id] === 0 ? "<1%" : `${sectorPercents[sector.id]}%`,
+  ));
+  expect(Object.values(sectorPercents).reduce((sum, percent) => sum + percent, 0)).toBe(100);
+  expect(sectors.querySelector(".map-sector-note")?.textContent ?? "").toBe(summary.sectors.other
+    ? `${summary.sectors.other} ${summary.sectors.other === 1 ? "startup has" : "startups have"} unclassified sector data`
+    : "");
 }
 
 describe("Jordan startup map", () => {
-  it("shows the validated national population and all synchronized cards", () => {
+  it("shows the approved total, seven sectors and shared public branding", () => {
     const { container } = render(<MapDashboard />);
-    expectStatistics(container, expected.all);
-    expect(container.querySelector(".dashboard-header")).not.toBeNull();
-    expect(container.querySelector(".dashboard-footer")).not.toBeNull();
+    expect(snapshot.nationwide.total).toBe(666);
+    expect(snapshot.nationwide.representedGovernorates).toBe(12);
+    expectStatistics(container, "All Governorates", snapshot.nationwide);
+    expect(container.querySelectorAll(".map-sector")).toHaveLength(7);
+    expect(container.querySelector(".dashboard-corner-flower")?.querySelectorAll(".dashboard-flower-petal")).toHaveLength(4);
+    expect(container.querySelector(".map-card-heading")).toBeNull();
+    expect(container.querySelector(".map-stages-card")).toBeNull();
+    expect(container.querySelector(".map-geometry-credit")).toBeNull();
+    expect(container.textContent).not.toContain("JORDAN");
+    expect(container.textContent).not.toContain("Programme stages");
+    expect(container.textContent).not.toContain("Map boundaries");
     expect([...container.querySelectorAll<HTMLImageElement>(".dashboard-header img")].map(img => img.alt)).toEqual([
       "German-Jordan Cooperation", "Co-funded by the European Union", "Ministry of Digital Economy and Entrepreneurship",
     ]);
     expect([...container.querySelectorAll<HTMLImageElement>(".dashboard-footer img")].map(img => img.alt)).toEqual([
       "GIZ", "ICON Institute", "PEM Consult",
     ]);
-    expect(container.querySelector(".dashboard-corner-flower")).toBeNull();
-    expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
-    expect(screen.queryByText("266")).toBeNull();
   });
 
-  it("updates total, gender, employment, stages and all eight sectors from one selection", () => {
+  it("updates every card for Ajloun, Amman and newly represented Zarqa, then resets", () => {
     const { container } = render(<MapDashboard />);
-    for (const id of ["aqaba", "amman", "ajlun", "mafraq"] as const) {
-      fireEvent.click(screen.getByTestId("region-" + id));
-      expectStatistics(container, expected[id]);
-      expect(screen.getByTestId("region-" + id).getAttribute("aria-pressed")).toBe("true");
-      expect(screen.getByTestId("pin-" + id).classList.contains("is-selected")).toBe(true);
-      expect(container.querySelectorAll(".map-region.is-selected")).toHaveLength(1);
-      expect(container.querySelectorAll(".map-region.is-dimmed").length).toBeGreaterThan(0);
+    for (const id of ["ajlun", "amman", "zarqa"] as const) {
+      fireEvent.click(screen.getByTestId(`region-${id}`));
+      expectStatistics(container, snapshot.governorates[id]!.name, snapshot.governorates[id]!);
+      expect(screen.getByTestId(`region-${id}`).getAttribute("aria-pressed")).toBe("true");
+      expect(screen.getByTestId(`pin-${id}`).classList.contains("is-selected")).toBe(true);
     }
-    expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
-  });
-
-  it("resets by re-click, empty geography, map background and Show all", () => {
-    const { container } = render(<MapDashboard />);
-    fireEvent.click(screen.getByTestId("region-aqaba"));
-    expectStatistics(container, expected.aqaba);
-    fireEvent.click(screen.getByTestId("region-aqaba"));
-    expectStatistics(container, expected.all);
-
-    fireEvent.click(screen.getByTestId("region-amman"));
-    fireEvent.click(container.querySelector(".map-region.is-neutral")!);
-    expectStatistics(container, expected.all);
-
-    fireEvent.click(screen.getByTestId("pin-ajlun"));
-    expectStatistics(container, expected.ajlun);
-    fireEvent.click(screen.getByRole("group", { name: "Jordan governorates map" }));
-    expectStatistics(container, expected.all);
-
-    fireEvent.click(screen.getByTestId("region-mafraq"));
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
-    expectStatistics(container, expected.all);
+    expectStatistics(container, "All Governorates", snapshot.nationwide);
     expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
-
-    fireEvent.click(screen.getByTestId("region-ajlun"));
-    fireEvent.click(container.querySelector(".map-sectors-card")!);
-    expectStatistics(container, expected.all);
   });
 
-  it("offers eight pins and keyboard-selectable regions on a data-ranked heatmap", () => {
+  it("provides twelve pins, a ranked heatmap and keyboard selection", () => {
     const { container } = render(<MapDashboard />);
     const map = screen.getByRole("group", { name: "Jordan governorates map" });
     expect(map.querySelectorAll(".map-regions path")).toHaveLength(12);
-    expect(map.querySelectorAll(".map-region.is-neutral")).toHaveLength(4);
-    expect(map.querySelectorAll(".map-pins .map-pin")).toHaveLength(8);
+    expect(map.querySelectorAll(".map-region.is-neutral")).toHaveLength(0);
+    expect(map.querySelectorAll(".map-pin")).toHaveLength(12);
     expect(map.querySelectorAll("text")).toHaveLength(0);
-    expect(map.querySelectorAll(".map-network-lines")).toHaveLength(0);
-    for (const id of MAP_GOVERNORATE_IDS) expect(screen.getByTestId("pin-" + id)).toBeTruthy();
-    const aqabaFill = screen.getByTestId("region-aqaba").style.fill;
-    const maanFill = screen.getByTestId("region-maan").style.fill;
-    expect(aqabaFill).not.toBe(maanFill);
-
-    const ajloun = screen.getByRole("button", { name: "Ajloun, 14 startups" });
-    fireEvent.keyDown(ajloun, { key: "Enter" });
-    expectStatistics(container, expected.ajlun);
-    expect(ajloun.getAttribute("aria-pressed")).toBe("true");
-    const amman = screen.getByRole("button", { name: "Amman, 22 startups" });
-    fireEvent.keyDown(amman, { key: " " });
-    expectStatistics(container, expected.amman);
-    expect(amman.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByTestId("region-aqaba").style.fill).toBe(aqabaFill);
+    for (const id of MAP_GOVERNORATE_IDS) expect(screen.getByTestId(`pin-${id}`)).toBeTruthy();
+    expect(screen.getByTestId("region-aqaba").style.fill).toBe("var(--map-heat-9)");
+    expect(screen.getByTestId("region-madaba").style.fill).toBe("var(--map-heat-1)");
+    const zarqa = screen.getByRole("button", { name: "Zarqa, 5 startups" });
+    fireEvent.keyDown(zarqa, { key: "Enter" });
+    expectStatistics(container, "Zarqa", snapshot.governorates.zarqa!);
+    fireEvent.keyDown(zarqa, { key: " " });
+    expectStatistics(container, "All Governorates", snapshot.nationwide);
   });
 
-  it("scales sector tint to the selected population and keeps zero gender visible", () => {
+  it("resets on re-click and outside click without recoloring the map", () => {
     const { container } = render(<MapDashboard />);
-    const tint = (index: number) => Number.parseInt(
-      (container.querySelectorAll<HTMLElement>(".map-sector")[index]).style.getPropertyValue("--map-sector-tone"),
-      10,
-    );
-    expect(tint(2)).toBeGreaterThan(tint(0));
-    expect(tint(2)).toBe(100);
-    expect(tint(7)).toBe(0);
-    expect(container.querySelectorAll(".map-sector")[2].getAttribute("data-contrast")).toBe("light");
-    expect(container.querySelectorAll(".map-sector")[7].getAttribute("data-contrast")).toBe("dark");
+    const aqabaFill = screen.getByTestId("region-aqaba").style.fill;
+    fireEvent.click(screen.getByTestId("region-aqaba"));
+    expectStatistics(container, "Aqaba", snapshot.governorates.aqaba!);
+    expect(screen.getByTestId("region-aqaba").style.fill).toBe(aqabaFill);
+    fireEvent.click(screen.getByTestId("region-aqaba"));
+    expectStatistics(container, "All Governorates", snapshot.nationwide);
+    fireEvent.click(screen.getByTestId("pin-ajlun"));
+    expectStatistics(container, "Ajloun", snapshot.governorates.ajlun!);
+    fireEvent.click(container.querySelector(".map-sectors-card")!);
+    expectStatistics(container, "All Governorates", snapshot.nationwide);
+  });
 
-    fireEvent.click(screen.getByTestId("region-ajlun"));
-    expect(tint(6)).toBe(100);
-    expect(tint(2)).toBeLessThan(tint(6));
-
-    fireEvent.click(screen.getByTestId("region-maan"));
-    expect(container.querySelector(".map-gender-female")?.getAttribute("data-empty")).toBe("true");
-    expect(container.querySelector(".map-gender-labels")?.textContent).toContain("0% · Female participants");
-    expect(container.querySelector(".map-employment-card")?.textContent).not.toContain("flagged missing");
+  it("uses approved PNG icons and a clean white pin dot", () => {
+    const { container } = render(<MapDashboard />);
+    const metricIcons = container.querySelectorAll(".map-metric-pair .dashboard-icon");
+    expect(metricIcons).toHaveLength(4);
+    expect([...metricIcons].map(icon => icon.querySelector("img")?.getAttribute("src"))).toEqual([
+      "/icons/png/female.png", "/icons/png/male.png",
+      "/icons/png/employment_startups.png", "/icons/png/employment_people.png",
+    ]);
+    expect(container.querySelectorAll(".map-sector .dashboard-icon")).toHaveLength(7);
+    expect(container.querySelectorAll(".map-sector .dashboard-icon img")).toHaveLength(7);
+    expect(container.querySelector(".map-statistics [style*='mask-image']")).toBeNull();
+    expect(container.querySelector(".map-pin-inner-halo")).toBeNull();
+    expect(container.querySelectorAll(".map-pin-core")).toHaveLength(12);
+    expect(container.querySelectorAll(".map-pin-rim-glow")).toHaveLength(12);
   });
 });

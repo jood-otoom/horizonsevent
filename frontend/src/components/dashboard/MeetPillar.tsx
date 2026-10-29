@@ -18,7 +18,7 @@ export default function MeetPillar({ resource }: MeetPillarProps) {
     <PillarCard
       title="MEET"
       subtitle="Connect with the right people"
-      icon="people"
+      icon="meet"
       gauge={(
         <SemiCircularGauge
           value={checkedIn}

@@ -1,57 +1,76 @@
 # Map workbook import
 
-## Source and boundary
+## Current source and interpretation
 
-The local `/map` redesign is based on the supplied `Map Master - E4DE v2.xlsx`, SHA-256 `2fb7da63d61d8c2652f22968febec6c1da1bf354414eb2d8c54c26338e51cc68`. The user prompt names `v2(1).xlsx`, but that file was not present among the supplied paths. The available `v2.xlsx` has a `Map master` worksheet with 389 populated data rows. This document records what the import produced from those bytes; it does not claim that a later workbook revision has the same values.
+The local `/map` snapshot is generated from `Map Data.xlsx`, SHA-256 `317355253f71e1ecc69b5c27402c04babc3f0e7e69007e9ef67212b1dd31dbde`. This is a different source and population from the earlier 265-startup `Map Master - E4DE v2.xlsx` import and the historical 266-startup `Participants List.xlsx` seed. The browser bundle contains aggregate counts and source provenance only. **The source workbook itself is already tracked in Git** (commit `3a6413e`) and includes legacy sheets with startup names and codes. Its repository exposure needs review before any new publication; stopping future tracking would not remove earlier Git history.
 
-The importer uses `Map master` only. It reads A (`E4DE code`) as the startup identifier, C (`Startup name`) only to check that an eligible record has an identity, D (`Governorate`), E (`Programme stage`), F (`Economic sector`), G (`Participant gender`), O (`Employees`), J (`ICON status`) for the exclusion audit, and X (`Data quality / review`). Column S (`Total current employment`) is a distinct measure and does not feed the displayed employment cards. The registration, support-measures, and event-participant worksheets do not feed this map. The generated JSON includes only counts, source provenance, and warning counts; it contains no code, startup name, contact, or participant-level record.
+The importer reads rows 5–670 of the visible `DATA - Support Measures` sheet. Row 4 names column B `Women-led`, C `Governorate`, D `Economic Sector`, and E `Staff Delta`. The owner confirmed that each of these 666 rows represents one distinct startup and that `Staff Delta` is the current employee count for this dashboard. The sheet has no startup identifier, so the workbook alone cannot independently prove uniqueness or deduplicate rows with matching attributes. The importer counts every source row once, rejects gaps and invalid values, and does not invent IDs. A value of `1` in `Women-led` contributes to Female-led; `0` contributes to Male-led. A positive `Staff Delta` contributes one employing startup, while all nonnegative integer values contribute to total employees. Programme stage is not used in the current map snapshot.
 
-An eligible row has stage `Acceleration`, `Go to Market`, or `Grow+`. The importer excludes `NA` and blank stages, rejects unexpected nonblank stages, then deduplicates eligible rows by a nonblank E4DE code. Identical duplicate rows collapse; conflicting rows for one code stop generation. The current source has 265 unique eligible records, no eligible duplicates, 124 `NA`-stage rows, and no blank-stage rows. Of those 124 excluded rows, 15 carry the workbook's `ICON Beneficiry` status. The excluded `NA` rows use the placeholder code `NA`, so that code cannot identify unique startups and is not included in eligible deduplication. The importer checks that included, excluded, and collapsed row counts reconcile to the source count.
+The visible `Map master (LENA)` sheet is a formula-derived presentation view. The importer checks its row count and cached columns A–G against the authoritative support-measures rows, including the leadership split, employment, and sector. The hidden legacy `Map master`, `Sheet4`, `Summary`, `all E4DE`, and event-participant sheets do not feed the current snapshot. Recalculate and save the workbook after any source edit so its cached formula values are current before regeneration.
 
-Governorate spellings are normalized by explicit aliases: Ajlun/Ajloun to `ajlun` displayed as Ajloun; Jarash/Jerash to `jarash` displayed as Jarash; Maan/Ma'an to `maan` displayed as Ma'an; Karak/Al-Karak to `karak` displayed as Karak. Other recognized labels are Aqaba, Mafraq, Amman, and Irbid. An unmapped eligible governorate stops generation for review rather than appearing under a guessed region.
+Governorates are matched through explicit spelling aliases and normalized to the 12 map IDs. Unknown governorates, unexpected nonblank sector labels, invalid `Women-led` values, negative or nonintegral employee counts, and source-versus-visible-sheet disagreement stop generation for review.
 
-## Sector mapping
+## Sector classification
 
-The importer keeps one explicit source-label mapping in `SECTOR_SOURCE_GROUPS` in `scripts/prepare_map_dashboard_data.py`. It normalizes capitalization, whitespace, and apostrophe style, but does not infer category from words such as “technical.” A new nonblank source label stops generation until reviewed. A blank or explicit `Uncategorized` label goes to Other and the missing-value count is reported.
+Each startup contributes to exactly one sector group. `SECTOR_SOURCE_GROUPS` in `scripts/prepare_map_dashboard_data.py` lists the accepted source labels; normalization changes case, spacing, and apostrophe style only. The importer also accepts the reviewed comma-versus-semicolon punctuation variant of the water-supply label. It does not infer a category from a word such as “Agritech.”
 
-| Presentation group | Exact normalized source labels in this workbook or accepted spelling alias |
-|---|---|
-| Technology & Digital | Information and communication; IT soluations (workbook spelling); IT solutions |
-| Green & Clean Tech | Agriculture, forestry and fishing; Water supply; sewerage, waste management and remediation activities |
-| Industry & Manufacturing | Manufacturing; Dairy Production; Construction |
-| Health & Social Impact | Human health and social work activities; Health technology |
-| Education & Creative | Education; Arts, entertainment and recreation |
-| Commerce & Services | Administrative and support service activities; Wholesale and retail trade; repair of motor vehicles and motorcycles; Professional, scientific and technical activities; Financial and insurance activities; Transportation and storage; Real estate activities |
-| Hospitality & Tourism | Accommodation and food service activities |
-| Other | cosmetics; Uncategorized; blank source label |
+| Presentation group | Source labels in the current mapping | Count |
+|---|---|---:|
+| Technology & Digital | Information and communication | 42 |
+| Green & Clean Tech | Agriculture, forestry and fishing; Water supply, sewerage, waste management and remediation activities (both reviewed punctuation forms) | 87 |
+| Industry & Manufacturing | Manufacturing; Construction | 205 |
+| Health & Social Impact | Human health and social work activities | 48 |
+| Education & Creative | Education; Arts, entertainment and recreation | 131 |
+| Commerce & Services | Administrative and support service activities; Wholesale and retail trade; repair of motor vehicles and motorcycles; Professional, scientific and technical activities; Financial and insurance activities; Transportation and storage; Real estate activities | 95 |
+| Hospitality & Tourism | Accommodation and food service activities | 36 |
+| Other / unclassified | Missing or ambiguous source labels listed below | 22 |
 
-The resulting national group counts, in the table order, are 14, 31, 91, 13, 49, 45, 21, and 1. They sum to 265. Each eligible startup contributes to exactly one group. Card percentages derive from those counts using the currently selected governorate's total.
+The seven classified groups contain 644 records. The other 22 remain in the aggregate rather than disappearing from sector calculations: 16 blank labels, one `-`, one `Agriculture`, one `Agritech`, two `Electricity, gas, steam and air conditioning supply`, and one `Public administration and defense; compulsory social security`. These values need source correction or an owner-approved sector mapping before they can be reassigned. Do not claim the seven classified groups cover all 666 startups. Governorate percentages use the currently selected governorate's total as their denominator.
 
-## Current reconciliation and quality limits
+## Reconciliation and quality limits
 
 | Measure | Current imported count |
 |---|---:|
-| Eligible startups | 265 |
-| Represented governorates | 8 |
-| Acceleration / Go to Market / Grow+ | 150 / 91 / 24 |
-| Female / Male / unknown participant gender | 142 / 123 / 0 |
-| Startups with known positive `Employees` | 142 |
-| Sum of known `Employees` | 762 |
-| Employee counts marked unknown | 2 |
+| Source rows counted as startups, by owner-confirmed row semantics | 666 |
+| Represented governorates | 12 |
+| Female-led / Male-led | 427 / 239 |
+| Startups with positive `Staff Delta` | 192 |
+| Sum of `Staff Delta` | 628 |
+| Unclassified sector records | 22 |
 
-Governorate totals are Aqaba 84, Karak 46, Mafraq 44, Jarash 38, Amman 22, Ajloun 14, Irbid 14, and Ma'an 3; they sum to 265. Ajloun has 9 female and 5 male participants, 9 startups with known positive employees, 35 counted employees, and 14 Acceleration startups. Every national and governorate summary reconciles gender, stage, and sector categories to its total.
+| Governorate | Startups |
+|---|---:|
+| Aqaba | 148 |
+| Karak | 101 |
+| Mafraq | 125 |
+| Jarash | 88 |
+| Amman | 80 |
+| Ajloun | 18 |
+| Irbid | 62 |
+| Ma'an | 15 |
+| Balqa | 4 |
+| Madaba | 1 |
+| Tafilah | 19 |
+| Zarqa | 5 |
+| **Total** | **666** |
 
-Column X flags 65 eligible rows with at least one review warning. Reason counts overlap: 48 `Total female exceeds total employment`, 39 `Total age 18–25 exceeds total employment`, 3 `Total refugee exceeds total employment`, 4 `Economic sector missing`, 2 `Employees count missing`, and 2 `Endline survey marked Not yet`. The four sector-missing flags coexist with filled F cells (`Dairy Production`, `IT soluations`, `Health technology`, `cosmetics`). The current map classifies those explicit F values and preserves the warning counts; it does not claim to resolve the underlying source conflict.
+Governorate counts, the 427 + 239 leadership split, and all eight sector buckets each reconcile to 666. `Staff Delta` is a count of people, so its 628 total does not need to equal the number of startups. No source row has an unknown leadership or employee value under the importer's current validation. The 22 sector labels above are the remaining classification issue. The absence of unique IDs is a separate audit limit despite the owner's one-row-per-startup confirmation.
 
-Both employee-missing flags are on Amman rows where cached O reads `0`. The importer treats those counts as unknown instead of verified zero, so national `unknownCount` is 2 and Amman `unknownCount` is 2. The 142 employing startups and 762 employees are sums of known O values and can be incomplete until those source warnings are resolved. Employee counts must otherwise be nonnegative integers. Gender is the workbook's **participant gender**, not verified startup leadership gender.
+### Historical 265-versus-266 discrepancy
+
+The earlier `Map Master - E4DE v2.xlsx` importer counted 265 unique stage-assigned E4DE codes after excluding 124 rows with stage `NA`; it showed Amman 22 and Go to Market 91. The historical `Participants List.xlsx` seed script counted rows 2–267 as 266 startups and explicitly expected an Amman Go to Market record named `Rewaq` with a blank E4DE code; its aggregate showed Amman 23 and Go to Market 92. That older workbook is not available here for independent row review. The new workbook's hidden legacy `Map master` contains row 269, code `SM913`, `alrewaq contracting company`, Amman, with stage `NA`. These may refer to the same entity, but the available records do not establish that identity. The one-record historical difference is localized to Amman / Go to Market, while the exact cross-workbook match remains unverified. The new 666-row support-measures population must not be described as a one-record correction of either historical source.
+
+## Map geometry credits
+
+The unchanged 12-governorate geometry derives from [Jordan Geo's bundled JOR ADM1 data](https://github.com/baselhusam/jordan-geo/blob/main/scripts/raw/jor-adm1.geojson) and [geoBoundaries JOR ADM1](https://www.geoboundaries.org/api/current/gbOpen/JOR/ADM1/), whose metadata gives a 2006 reference year. Jordan Geo's [data license note](https://github.com/baselhusam/jordan-geo/blob/main/LICENSE) calls the boundary data ODbL and requires attribution/share-alike. The [geoBoundaries site](https://www.geoboundaries.org/) calls its gbOpen data CC BY 4.0, while its Jordan API metadata names an underlying CC BY 2.5 source. These license statements conflict; do not assume the discrepancy is resolved. Keep source and license links in accessible product credits and confirm the governing terms before production. The venue map omits the former boundary-attribution footer line as requested; removing that line does not remove attribution obligations.
 
 ## Regeneration and review
 
-Keep the private workbook outside the repository. The importer reads cached Excel cell values, including formula results; recalculate and save the workbook in a spreadsheet application after editing it, then inspect the revision before importing. From the repository root:
+Do not publish a modified source workbook with this map candidate. From the repository root, after recalculating and saving the workbook:
 
 ```sh
-python3 scripts/prepare_map_dashboard_data.py '/path/to/Map Master - E4DE v2.xlsx'
-MAP_WORKBOOK_PATH='/path/to/Map Master - E4DE v2.xlsx' python3 -m unittest discover -s scripts -p 'test_prepare_map_dashboard_data.py' -v
+python3 scripts/prepare_map_dashboard_data.py 'Map Data.xlsx'
+MAP_WORKBOOK_PATH='Map Data.xlsx' python3 -m unittest discover -s scripts -p 'test_prepare_map_dashboard_data.py' -v
 ```
 
-Review the generated `frontend/src/data/mapSnapshot.json` diff, source hash, category and governorate totals, excluded rows, and warning counts. The source-specific test assertions describe this reviewed workbook and should be updated only after a new source audit. Generation changes local frontend data only. It does not write Supabase, invoke b2match, or deploy. The historical 266-startup `supabase/seed/map_dashboard_snapshot.sql` belongs to the former published map path and must not be rerun as part of this refresh. Release still needs owner approval and a venue display check.
+Review the generated `frontend/src/data/mapSnapshot.json` diff, SHA-256, source and governorate totals, leadership/employment measures, and the unclassified-sector audit before building. Generation changes local frontend data only; it does not write Supabase, invoke b2match, or deploy. The historical 266-startup `supabase/seed/map_dashboard_snapshot.sql` belongs to an earlier published path and must not be rerun as part of this refresh. Production release needs separate owner approval and a venue-display check.

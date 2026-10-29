@@ -3,19 +3,20 @@ import DashboardBackground from "../components/dashboard/DashboardBackground";
 import DashboardFooter from "../components/dashboard/DashboardFooter";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import JordanMap from "../components/map/JordanMap";
-import { EmploymentCard, GenderCard, SectorsGrid, StagesCard, TotalStartupsCard } from "../components/map/MapStatistics";
+import { EmploymentCard, GenderCard, SectorsGrid, TotalStartupsCard } from "../components/map/MapStatistics";
 import mapSnapshotData from "../data/mapSnapshot.json";
 import { createHeatmapScale } from "../lib/mapHeatmap";
 import { validateMapSnapshot } from "../lib/mapMetrics";
 import { MAP_GOVERNORATE_IDS, type MapGovernorateId, type MapSnapshot } from "../types/map";
 
 const snapshot = validateMapSnapshot(mapSnapshotData as MapSnapshot);
-const heatmap = createHeatmapScale(MAP_GOVERNORATE_IDS.map(id => snapshot.governorates[id].total));
+const heatmap = createHeatmapScale(MAP_GOVERNORATE_IDS.map(id => snapshot.governorates[id]?.total ?? 0));
 
 export default function MapDashboard() {
   const [selectedGovernorate, setSelectedGovernorate] = useState<MapGovernorateId | "all">("all");
-  const summary = selectedGovernorate === "all" ? snapshot.nationwide : snapshot.governorates[selectedGovernorate];
-  const selectionName = selectedGovernorate === "all" ? "All Governorates" : snapshot.governorates[selectedGovernorate].name;
+  const selectedSummary = selectedGovernorate === "all" ? undefined : snapshot.governorates[selectedGovernorate];
+  const summary = selectedSummary ?? snapshot.nationwide;
+  const selectionName = selectedSummary?.name ?? "All Governorates";
 
   function selectGovernorate(id: MapGovernorateId | "all") {
     setSelectedGovernorate(current => current === id ? "all" : id);
@@ -29,7 +30,6 @@ export default function MapDashboard() {
     <DashboardHeader />
     <section className="map-cards" aria-label="Jordan startup statistics">
       <div className="map-card-map">
-        <div className="map-card-heading"><span className="map-heading-dot" />JORDAN</div>
         <div className="map-graphic">
           <JordanMap selected={selectedGovernorate} onSelect={selectGovernorate} snapshot={snapshot} heatmap={heatmap} />
         </div>
@@ -41,11 +41,9 @@ export default function MapDashboard() {
           <GenderCard summary={summary} />
           <EmploymentCard summary={summary} />
         </div>
-        <StagesCard summary={summary} />
         <SectorsGrid summary={summary} />
       </div>
     </section>
     <DashboardFooter />
-    <p className="map-geometry-credit">Map boundaries: geoBoundaries JOR ADM1 · ODbL</p>
   </main>;
 }

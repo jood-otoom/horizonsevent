@@ -1,7 +1,8 @@
-"""Build the public, aggregate-only /map dataset from the private Map master sheet.
+"""Build aggregate-only /map data from the reviewed support-measures table.
 
-Usage: python3 scripts/prepare_map_dashboard_data.py '/path/to/Map Master - E4DE v2.xlsx'
-The source workbook is read locally and is never copied into the frontend.
+Usage: python3 scripts/prepare_map_dashboard_data.py 'Map Data.xlsx'
+Only counts and source provenance are written to the frontend bundle. The source
+workbook's existing Git tracking needs separate repository-exposure review.
 """
 
 from __future__ import annotations
@@ -18,37 +19,42 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "frontend/src/data/mapSnapshot.json"
+SOURCE_SHEET = "DATA - Support Measures"
+VISIBLE_SHEET = "Map master (LENA)"
 MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
-STAGES = ("Acceleration", "Go to Market", "Grow+")
+SOURCE_HEADERS = {"B": "Women-led", "C": "Governorate", "D": "Economic Sector", "E": "Staff Delta"}
+VISIBLE_HEADERS = {
+    3: {"A": "Governorate", "B": "Total start-ups", "F": "employed", "G": "Economic sector"},
+    4: {"C": "Male", "D": "Female"},
+}
 GOVERNORATES = {
     "aqaba": "Aqaba", "karak": "Karak", "mafraq": "Mafraq", "jarash": "Jarash",
     "amman": "Amman", "ajlun": "Ajloun", "irbid": "Irbid", "maan": "Ma'an",
+    "balqa": "Balqa", "madaba": "Madaba", "tafilah": "Tafilah", "zarqa": "Zarqa",
 }
 GOVERNORATE_ALIASES = {
     "aqaba": "aqaba", "karak": "karak", "al-karak": "karak", "mafraq": "mafraq",
     "jarash": "jarash", "jerash": "jarash", "amman": "amman",
     "ajlun": "ajlun", "ajloun": "ajlun", "irbid": "irbid",
-    "maan": "maan", "ma'an": "maan",
+    "maan": "maan", "ma'an": "maan", "balqa": "balqa", "madaba": "madaba",
+    "tafilah": "tafilah", "at-tafilah": "tafilah", "zarqa": "zarqa",
 }
 SECTOR_GROUPS = (
     "technologyDigital", "greenCleanTech", "industryManufacturing",
     "healthSocialImpact", "educationCreative", "commerceServices",
     "hospitalityTourism", "other",
 )
-# Each workbook label has one explicit presentation group. New labels fail review.
+# Reviewed source labels, including one punctuation variant of the same water-supply label.
 SECTOR_SOURCE_GROUPS = {
     "information and communication": "technologyDigital",
-    "it solutions": "technologyDigital",
-    "it soluations": "technologyDigital",  # Spelling in the reviewed source.
     "agriculture, forestry and fishing": "greenCleanTech",
     "water supply; sewerage, waste management and remediation activities": "greenCleanTech",
+    "water supply, sewerage, waste management and remediation activities": "greenCleanTech",
     "manufacturing": "industryManufacturing",
-    "dairy production": "industryManufacturing",
     "construction": "industryManufacturing",
     "human health and social work activities": "healthSocialImpact",
-    "health technology": "healthSocialImpact",
     "education": "educationCreative",
     "arts, entertainment and recreation": "educationCreative",
     "administrative and support service activities": "commerceServices",
@@ -58,21 +64,12 @@ SECTOR_SOURCE_GROUPS = {
     "transportation and storage": "commerceServices",
     "real estate activities": "commerceServices",
     "accommodation and food service activities": "hospitalityTourism",
-    "cosmetics": "other",
-    "uncategorized": "other",
 }
-WARNING_KEYS = {
-    "total female exceeds total employment": "totalFemaleExceedsTotalEmployment",
-    "total age 18–25 exceeds total employment": "totalYouthExceedsTotalEmployment",
-    "total refugee exceeds total employment": "totalRefugeeExceedsTotalEmployment",
-    "economic sector missing": "economicSectorMissingReviewFlag",
-    "employees count missing": "employeesCountMissing",
-    "endline survey marked not yet": "endlineSurveyNotYet",
-}
-HEADERS = {
-    "A": "E4DE code", "C": "Startup name", "D": "Governorate",
-    "E": "Programme stage", "F": "Economic sector", "G": "Participant gender",
-    "O": "Employees", "S": "Total current employment", "X": "Data quality / review",
+# Reviewed gaps remain Other pending source correction or an approved taxonomy.
+UNCLASSIFIED_SECTOR_LABELS = {
+    "", "-", "agriculture", "agritech",
+    "electricity, gas, steam and air conditioning supply",
+    "public administration and defense; compulsory social security",
 }
 
 
@@ -89,7 +86,7 @@ def normalize_governorate(value: str) -> str:
 
 def normalize_sector(value: str) -> str:
     key = normalize_text(value)
-    if not key:
+    if key in UNCLASSIFIED_SECTOR_LABELS:
         return "other"
     if key not in SECTOR_SOURCE_GROUPS:
         raise ValueError(f"Unmapped economic sector: {value!r}")
@@ -99,7 +96,8 @@ def normalize_sector(value: str) -> str:
 def _sheet_path(archive: ZipFile, sheet_name: str) -> str:
     workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
     relationships = ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
-    targets = {rel.attrib["Id"]: rel.attrib["Target"] for rel in relationships.findall(f"{{{PACKAGE_NS}}}Relationship")}
+    targets = {rel.attrib["Id"]: rel.attrib["Target"]
+               for rel in relationships.findall(f"{{{PACKAGE_NS}}}Relationship")}
     for sheet in workbook.findall(f".//{{{MAIN_NS}}}sheet"):
         if sheet.attrib.get("name") == sheet_name:
             target = targets[sheet.attrib[f"{{{REL_NS}}}id"]]
@@ -107,8 +105,9 @@ def _sheet_path(archive: ZipFile, sheet_name: str) -> str:
     raise ValueError(f"Worksheet {sheet_name!r} is missing")
 
 
-def read_rows(path: Path) -> dict[int, dict[str, str]]:
-    """Read only cached cell values from a named worksheet, without importing PII."""
+def read_rows(path: Path, sheet_name: str = SOURCE_SHEET) -> dict[int, dict[str, str]]:
+    """Read cached cell values from one named sheet without copying private data."""
+    columns = set(SOURCE_HEADERS if sheet_name == SOURCE_SHEET else "ABCDEFG")
     with ZipFile(path) as archive:
         if "xl/sharedStrings.xml" in archive.namelist():
             strings_root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
@@ -116,7 +115,7 @@ def read_rows(path: Path) -> dict[int, dict[str, str]]:
                        for item in strings_root.findall(f"{{{MAIN_NS}}}si")]
         else:
             strings = []
-        sheet = ElementTree.fromstring(archive.read(_sheet_path(archive, "Map master")))
+        sheet = ElementTree.fromstring(archive.read(_sheet_path(archive, sheet_name)))
     rows: dict[int, dict[str, str]] = {}
     for row in sheet.findall(f".//{{{MAIN_NS}}}sheetData/{{{MAIN_NS}}}row"):
         values: dict[str, str] = {}
@@ -125,7 +124,7 @@ def read_rows(path: Path) -> dict[int, dict[str, str]]:
             if match is None:
                 raise ValueError("Invalid spreadsheet cell reference")
             column = match.group()
-            if column not in HEADERS and column != "J":
+            if column not in columns:
                 continue
             raw = cell.find(f"{{{MAIN_NS}}}v")
             inline = cell.find(f"{{{MAIN_NS}}}is")
@@ -140,19 +139,15 @@ def read_rows(path: Path) -> dict[int, dict[str, str]]:
     return rows
 
 
-def parse_employees(value: str, missing_flag: bool, row_number: int) -> int | None:
+def parse_employees(value: str, row_number: int) -> int:
     if not value.strip():
-        return None
+        raise ValueError(f"Row {row_number}: Staff Delta is missing")
     try:
         number = Decimal(value)
     except InvalidOperation as error:
-        raise ValueError(f"Row {row_number}: Employees is not numeric") from error
+        raise ValueError(f"Row {row_number}: Staff Delta is not numeric") from error
     if not number.is_finite() or number < 0 or number != number.to_integral_value():
-        raise ValueError(f"Row {row_number}: Employees must be a nonnegative integer")
-    if missing_flag:
-        if number != 0:
-            raise ValueError(f"Row {row_number}: Employees conflicts with missing-count review flag")
-        return None
+        raise ValueError(f"Row {row_number}: Staff Delta must be a nonnegative integer")
     return int(number)
 
 
@@ -161,7 +156,6 @@ def empty_summary() -> dict:
         "total": 0,
         "gender": {"female": 0, "male": 0, "unknown": 0},
         "employment": {"startupsWithEmployees": 0, "totalEmployees": 0, "unknownCount": 0},
-        "stages": {stage: 0 for stage in STAGES},
         "sectors": {sector: 0 for sector in SECTOR_GROUPS},
     }
 
@@ -169,123 +163,87 @@ def empty_summary() -> dict:
 def _check_summary(summary: dict) -> None:
     total = summary["total"]
     if (sum(summary["gender"].values()) != total or
-            sum(summary["stages"].values()) != total or
             sum(summary["sectors"].values()) != total or
-            summary["employment"]["startupsWithEmployees"] + summary["employment"]["unknownCount"] > total):
+            summary["employment"]["startupsWithEmployees"] > total):
         raise ValueError("Map aggregates do not reconcile")
 
 
-def build_snapshot(rows: dict[int, dict[str, str]], workbook_name: str, digest: str) -> dict:
-    if any(rows.get(1, {}).get(column) != title for column, title in HEADERS.items()):
-        raise ValueError("Map master headers differ from the reviewed source")
+def _data_row_numbers(rows: dict[int, dict[str, str]]) -> list[int]:
+    numbers = sorted(number for number, row in rows.items()
+                     if number >= 5 and any(row.get(column, "").strip() for column in SOURCE_HEADERS))
+    if not numbers or numbers != list(range(5, numbers[-1] + 1)):
+        raise ValueError("Support-measures data rows are empty or have a gap")
+    return numbers
 
-    records: dict[str, tuple[int, tuple[str, ...]]] = {}
-    duplicate_count = 0
-    source_count = excluded_na = excluded_icon_na = excluded_missing_stage = 0
-    for row_number, row in sorted(rows.items()):
-        if row_number == 1:
-            continue
-        code = row.get("A", "").strip()
-        has_source_data = code or row.get("C", "").strip() or row.get("E", "").strip()
-        if not has_source_data:
-            continue
-        source_count += 1
-        stage_key = normalize_text(row.get("E", ""))
-        if stage_key == "na":
-            excluded_na += 1
-            if normalize_text(row.get("J", "")) in ("icon beneficiry", "icon beneficiary"):
-                excluded_icon_na += 1
-            continue
-        if not stage_key:
-            excluded_missing_stage += 1
-            continue
-        if stage_key not in (normalize_text(stage) for stage in STAGES):
-            raise ValueError(f"Row {row_number}: unexpected programme stage")
-        if not code or normalize_text(code) == "na":
-            raise ValueError(f"Row {row_number}: E4DE code is missing")
-        key = normalize_text(code)
-        fields = tuple(row.get(column, "").strip() for column in ("C", "D", "E", "F", "G", "J", "O", "X"))
-        if key in records:
-            if records[key][1] != fields:
-                raise ValueError(f"Row {row_number}: conflicting duplicate E4DE code")
-            duplicate_count += 1
-        else:
-            records[key] = (row_number, fields)
 
+def _check_visible_rows(source_rows: dict[int, dict[str, str]],
+                        visible_rows: dict[int, dict[str, str]], numbers: list[int]) -> None:
+    for row_number, headers in VISIBLE_HEADERS.items():
+        if any(visible_rows.get(row_number, {}).get(column) != title for column, title in headers.items()):
+            raise ValueError("Visible map sheet headers differ from the reviewed source")
+    if sorted(number for number, row in visible_rows.items()
+              if number >= 5 and row.get("A", "").strip()) != numbers:
+        raise ValueError("Visible map sheet row count differs from support measures")
+    for number in numbers:
+        source = source_rows[number]
+        visible = visible_rows[number]
+        female = int(source["B"])
+        expected = {
+            "A": source["C"], "B": "1", "C": str(1 - female), "D": str(female),
+            "E": str(female), "F": source["E"], "G": source.get("D", "") or "0",
+        }
+        if any(visible.get(column, "") != value for column, value in expected.items()):
+            raise ValueError(f"Row {number}: visible map values disagree with source table")
+
+
+def build_snapshot(source_rows: dict[int, dict[str, str]], visible_rows: dict[int, dict[str, str]],
+                   workbook_name: str, digest: str) -> dict:
+    if any(source_rows.get(4, {}).get(column) != title for column, title in SOURCE_HEADERS.items()):
+        raise ValueError("Support-measures headers differ from the reviewed source")
+    numbers = _data_row_numbers(source_rows)
     nationwide = empty_summary()
     governors: dict[str, dict] = {}
-    warning_rows = 0
-    warnings: Counter[str] = Counter()
-    sector_review_conflicts = missing_sector_count = 0
-    for row_number, fields in records.values():
-        name, governorate, raw_stage, sector, gender, _icon_status, employee_value, review = fields
-        stage = next((item for item in STAGES if normalize_text(item) == normalize_text(raw_stage)), None)
-        if stage is None:
-            raise ValueError("Unexpected programme stage in Map master")
-        if not name:
-            raise ValueError("Eligible startup has no name")
-        governorate_id = normalize_governorate(governorate)
-        sector_id = normalize_sector(sector)
-        missing_sector_count += int(not sector.strip())
-        gender_key = normalize_text(gender)
-        if gender_key not in ("female", "male", "", "na"):
-            raise ValueError("Unexpected participant gender in Map master")
-        gender_id = gender_key if gender_key in ("female", "male") else "unknown"
-
-        warning_keys: set[str] = set()
-        for item in review.split(";"):
-            label = normalize_text(item)
-            if not label or label in ("na", "0"):
-                continue
-            if label not in WARNING_KEYS:
-                raise ValueError("Unknown data-quality review warning in Map master")
-            warning_keys.add(WARNING_KEYS[label])
-        if warning_keys:
-            warning_rows += 1
-            warnings.update(warning_keys)
-        if "economicSectorMissingReviewFlag" in warning_keys and sector.strip():
-            sector_review_conflicts += 1
-        employees = parse_employees(employee_value, "employeesCountMissing" in warning_keys, row_number)
-
-        for summary in (nationwide, governors.setdefault(governorate_id, empty_summary())):
+    unclassified: Counter[str] = Counter()
+    for number in numbers:
+        row = source_rows[number]
+        gender_value = row.get("B", "").strip()
+        if gender_value not in ("0", "1"):
+            raise ValueError(f"Row {number}: Women-led must be 0 or 1")
+        governorate = normalize_governorate(row.get("C", ""))
+        sector_label = row.get("D", "").strip()
+        sector = normalize_sector(sector_label)
+        employees = parse_employees(row.get("E", ""), number)
+        if sector == "other":
+            unclassified[sector_label or "(blank)"] += 1
+        for summary in (nationwide, governors.setdefault(governorate, empty_summary())):
             summary["total"] += 1
-            summary["gender"][gender_id] += 1
-            summary["stages"][stage] += 1
-            summary["sectors"][sector_id] += 1
-            if employees is None:
-                summary["employment"]["unknownCount"] += 1
-            else:
-                summary["employment"]["totalEmployees"] += employees
-                summary["employment"]["startupsWithEmployees"] += int(employees > 0)
+            summary["gender"]["female" if gender_value == "1" else "male"] += 1
+            summary["sectors"][sector] += 1
+            summary["employment"]["startupsWithEmployees"] += int(employees > 0)
+            summary["employment"]["totalEmployees"] += employees
 
+    _check_visible_rows(source_rows, visible_rows, numbers)
     _check_summary(nationwide)
     for summary in governors.values():
         _check_summary(summary)
     if sum(summary["total"] for summary in governors.values()) != nationwide["total"]:
         raise ValueError("Governorate totals do not reconcile")
-    if source_count != nationwide["total"] + excluded_na + excluded_missing_stage + duplicate_count:
-        raise ValueError("Source-row counts do not reconcile")
-    if not nationwide["total"]:
-        raise ValueError("Map master has no eligible startup records")
+    if sum(unclassified.values()) != nationwide["sectors"]["other"]:
+        raise ValueError("Unclassified sector audit does not reconcile")
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "source": {
             "workbook": workbook_name,
-            "sheet": "Map master",
+            "sheet": SOURCE_SHEET,
             "sha256": digest,
-            "sourceRecordCount": source_count,
+            "sourceRecordCount": len(numbers),
             "includedCount": nationwide["total"],
-            "excludedNAStageCount": excluded_na,
-            "excludedIconNAStageCount": excluded_icon_na,
-            "excludedMissingStageCount": excluded_missing_stage,
-            "deduplicatedRowCount": duplicate_count,
-            "qualityWarnings": {
-                "flaggedRecordCount": warning_rows,
-                "byReason": {key: warnings[key] for key in WARNING_KEYS.values()},
-                "sectorMissingFlagWithCategoryCount": sector_review_conflicts,
-                "missingSectorValueCount": missing_sector_count,
-            },
+            "uniquenessBasis": "owner-confirmed-one-row-per-startup",
+            "genderField": "Women-led",
+            "employmentField": "Staff Delta",
+            "unclassifiedSectorCount": sum(unclassified.values()),
+            "unclassifiedSectorLabels": dict(sorted(unclassified.items())),
         },
         "nationwide": {**nationwide, "representedGovernorates": len(governors)},
         "governorates": {
@@ -298,15 +256,17 @@ def build_snapshot(rows: dict[int, dict[str, str]], workbook_name: str, digest: 
 def main(path: Path) -> None:
     if not path.is_file():
         raise SystemExit(f"Workbook does not exist: {path}")
-    snapshot = build_snapshot(read_rows(path), path.name, sha256(path.read_bytes()).hexdigest())
+    snapshot = build_snapshot(
+        read_rows(path), read_rows(path, VISIBLE_SHEET), path.name, sha256(path.read_bytes()).hexdigest()
+    )
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Prepared {snapshot['nationwide']['total']} aggregated startups across "
+    print(f"Prepared {snapshot['nationwide']['total']} aggregate startup rows across "
           f"{snapshot['nationwide']['representedGovernorates']} governorates")
     print(f"Wrote aggregate-only data: {OUTPUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
     if len(argv) != 2:
-        raise SystemExit("Usage: python3 scripts/prepare_map_dashboard_data.py '/path/to/Map Master workbook.xlsx'")
+        raise SystemExit("Usage: python3 scripts/prepare_map_dashboard_data.py 'Map Data.xlsx'")
     main(Path(argv[1]))

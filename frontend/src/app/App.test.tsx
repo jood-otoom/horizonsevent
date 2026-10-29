@@ -18,9 +18,9 @@ describe("application routes", () => {
 
   it("shows the startup map route without changing the dashboard routes", () => {
     const markup = renderToStaticMarkup(<App pathname="/map" />);
-    expect(markup).toContain("JORDAN");
+    expect(markup).not.toContain('class="map-eyebrow"');
     expect(markup).toContain("Total number of startups");
-    expect(markup).toContain("265");
+    expect(markup).toContain("666");
     expect(markup).not.toContain("Demo values");
   });
 

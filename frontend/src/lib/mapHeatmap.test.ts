@@ -7,16 +7,11 @@ describe("governorate heatmap", () => {
     expect(scale.colorFor(14)).toBe(createHeatmapScale([84, 46, 44, 38, 22, 14, 3]).colorFor(14));
     expect(scale.colorFor(3)).not.toBe(scale.colorFor(14));
     expect(scale.colorFor(84)).not.toBe(scale.colorFor(3));
-    expect(scale.colorFor(84)).toBe("#9F0028");
-    expect(scale.colorFor(46)).toBe("#C40032");
-    const brightness = [3, 14, 22, 38, 44, 46, 84].map(total => {
-      const color = scale.colorFor(total)!;
-      const red = parseInt(color.slice(1, 3), 16);
-      const green = parseInt(color.slice(3, 5), 16);
-      const blue = parseInt(color.slice(5, 7), 16);
-      return .2126 * red + .7152 * green + .0722 * blue;
-    });
-    expect(brightness).toEqual([...brightness].sort((a, b) => b - a));
+    expect(scale.colorFor(84)).toBe("var(--map-heat-9)");
+    expect(scale.colorFor(46)).toBe("var(--map-heat-8)");
+    expect([3, 14, 22, 38, 44, 46, 84].map(total => Number(
+      scale.colorFor(total)?.match(/map-heat-(\d)/)?.[1],
+    ))).toEqual([1, 2, 4, 5, 6, 8, 9]);
   });
 
   it("keeps missing values neutral and handles an equal-value distribution", () => {
@@ -26,7 +21,7 @@ describe("governorate heatmap", () => {
     expect(empty.colorFor(0)).toBe("#FFFFFF");
     expect(createHeatmapScale([0, 3, 84]).colorFor(3)).toBe(createHeatmapScale([3, 84]).colorFor(3));
     const equal = createHeatmapScale([12, 12, 12]);
-    expect(equal.colorFor(12)).toBe("#9F0028");
+    expect(equal.colorFor(12)).toBe("var(--map-heat-9)");
     expect(equal.colorFor(0)).toBe("#FFFFFF");
   });
 });

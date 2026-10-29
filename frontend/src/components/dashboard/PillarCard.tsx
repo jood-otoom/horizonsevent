@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import MetricPanel, { type MetricPanelItem } from "../ui/MetricPanel";
-import PillarIcon, { type PillarIconName } from "./PillarIcon";
+import { DashboardIcon } from "../ui/DashboardIcon";
 
 interface PillarCardProps {
   title: string;
   subtitle: string;
-  icon: PillarIconName;
+  icon: "meet" | "match" | "grow";
   gauge: ReactNode;
   metrics: MetricPanelItem[];
 }
@@ -22,7 +22,7 @@ export default function PillarCard({
   return (
     <section className="pillar-card" aria-labelledby={`${id}-title`}>
       <div className="pillar-icon">
-        <PillarIcon name={icon} />
+        <DashboardIcon name={icon} size={56} />
       </div>
       <h2 className="pillar-title" id={`${id}-title`}>{title}</h2>
       <p className="pillar-subtitle">{subtitle}</p>

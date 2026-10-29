@@ -9,6 +9,9 @@ describe("Dashboard", () => {
     expect(markup).toContain("MEET");
     expect(markup).toContain("MATCH");
     expect(markup).toContain("GROW");
+    expect(markup).toContain("/icons/png/meet.png");
+    expect(markup).toContain("/icons/png/match.png");
+    expect(markup).toContain("/icons/png/grow.png");
     expect(markup).toContain("Demo values");
     expect(markup).not.toContain("dashboard-connections");
     expect(markup).not.toContain("MATCH connected");
