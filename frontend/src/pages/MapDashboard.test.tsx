@@ -9,7 +9,6 @@ import MapDashboard from "./MapDashboard";
 afterEach(cleanup);
 
 const snapshot = mapSnapshotData as MapSnapshot;
-const classifiedSectors = MAP_SECTORS.filter(sector => sector.id !== "other");
 
 function texts(container: Element, selector: string): string[] {
   return [...container.querySelectorAll(selector)].map(element => element.textContent?.trim() ?? "");
@@ -35,24 +34,28 @@ function expectStatistics(container: HTMLElement, name: string, summary: MapSumm
 
   const sectors = panel.querySelector(".map-sectors-card")!;
   const sectorPercents = sectorPercentages(summary);
-  expect(texts(sectors, ".map-sector > div > span")).toEqual(classifiedSectors.map(sector => sector.label));
-  expect(texts(sectors, ".map-sector strong")).toEqual(classifiedSectors.map(sector =>
+  expect(texts(sectors, ".map-sector > div > span")).toEqual(MAP_SECTORS.map(sector => sector.label));
+  expect(texts(sectors, ".map-sector strong")).toEqual(MAP_SECTORS.map(sector =>
     summary.sectors[sector.id] > 0 && sectorPercents[sector.id] === 0 ? "<1%" : `${sectorPercents[sector.id]}%`,
   ));
+  expect([...sectors.querySelectorAll(".map-sector")].map(tile => tile.getAttribute("title"))).toEqual(
+    MAP_SECTORS.map(sector => `${summary.sectors[sector.id]} ${summary.sectors[sector.id] === 1 ? "startup" : "startups"} in ${sector.label}`),
+  );
   expect(Object.values(sectorPercents).reduce((sum, percent) => sum + percent, 0)).toBe(100);
-  expect(sectors.querySelector(".map-sector-note")?.textContent ?? "").toBe(summary.sectors.other
-    ? `${summary.sectors.other} ${summary.sectors.other === 1 ? "startup has" : "startups have"} unclassified sector data`
-    : "");
+  expect(sectors.querySelector(".map-sector-note")).toBeNull();
 }
 
 describe("Jordan startup map", () => {
-  it("shows the approved total, seven sectors and shared public branding", () => {
+  it("shows the approved total, eight sectors and shared public branding", () => {
     const { container } = render(<MapDashboard />);
     expect(snapshot.nationwide.total).toBe(666);
     expect(snapshot.nationwide.representedGovernorates).toBe(12);
     expectStatistics(container, "All Governorates", snapshot.nationwide);
-    expect(container.querySelectorAll(".map-sector")).toHaveLength(7);
-    expect(container.querySelector(".dashboard-corner-flower")?.querySelectorAll(".dashboard-flower-petal")).toHaveLength(4);
+    expect(container.querySelectorAll(".map-sector")).toHaveLength(8);
+    expect(container.querySelector(".map-sector:last-child")?.getAttribute("title")).toBe("22 startups in Other");
+    expect(container.querySelector(".map-sector:last-child strong")?.textContent).toBe("3%");
+    expect(container.querySelector<HTMLImageElement>(".dashboard-corner-flower")?.getAttribute("src")).toContain("horizon-flower.svg");
+    expect(container.querySelector(".dashboard-background")).toBeNull();
     expect(container.querySelector(".map-card-heading")).toBeNull();
     expect(container.querySelector(".map-stages-card")).toBeNull();
     expect(container.querySelector(".map-geometry-credit")).toBeNull();
@@ -119,8 +122,9 @@ describe("Jordan startup map", () => {
       "/icons/png/female.png", "/icons/png/male.png",
       "/icons/png/employment_startups.png", "/icons/png/employment_people.png",
     ]);
-    expect(container.querySelectorAll(".map-sector .dashboard-icon")).toHaveLength(7);
-    expect(container.querySelectorAll(".map-sector .dashboard-icon img")).toHaveLength(7);
+    expect(container.querySelectorAll(".map-sector .dashboard-icon")).toHaveLength(8);
+    expect(container.querySelectorAll(".map-sector .dashboard-icon img")).toHaveLength(8);
+    expect(container.querySelector(".map-sector:last-child .dashboard-icon img")?.getAttribute("src")).toBe("/icons/png/other.png");
     expect(container.querySelector(".map-statistics [style*='mask-image']")).toBeNull();
     expect(container.querySelector(".map-pin-inner-halo")).toBeNull();
     expect(container.querySelectorAll(".map-pin-core")).toHaveLength(12);

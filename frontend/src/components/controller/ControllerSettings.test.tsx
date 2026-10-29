@@ -224,7 +224,7 @@ it("unlocks Stop and Reset after Start returns the exact deployed response shape
   });
   await openSettings(service);
   fireEvent.click(screen.getByRole("button", { name: "Start Sync" }));
-  await screen.findByText("Sync started. Fetching now, then every two minutes.");
+  await screen.findByText("Sync started. Fetching now, then about every 30 seconds.");
   expect(screen.getByRole("button", { name: "Stop Sync" }).hasAttribute("disabled")).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Stop Sync" }));
   await screen.findByText("Sync stopped. Last fetched totals are preserved.");

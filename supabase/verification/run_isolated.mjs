@@ -27,6 +27,7 @@ const migrations = [
   "20261023172257_manual_checkin_fallback.sql",
   "20261028192045_event_operations_and_sync.sql",
   "20261028211842_reset_match_grow.sql",
+  "20261029060719_b2match_30_second_cadence.sql",
 ];
 const bootstrap = `
   create role anon; create role authenticated; create role service_role bypassrls;

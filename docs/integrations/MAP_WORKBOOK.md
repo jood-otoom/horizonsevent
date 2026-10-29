@@ -25,7 +25,7 @@ Each startup contributes to exactly one sector group. `SECTOR_SOURCE_GROUPS` in 
 | Hospitality & Tourism | Accommodation and food service activities | 36 |
 | Other / unclassified | Missing or ambiguous source labels listed below | 22 |
 
-The seven classified groups contain 644 records. The other 22 remain in the aggregate rather than disappearing from sector calculations: 16 blank labels, one `-`, one `Agriculture`, one `Agritech`, two `Electricity, gas, steam and air conditioning supply`, and one `Public administration and defense; compulsory social security`. These values need source correction or an owner-approved sector mapping before they can be reassigned. Do not claim the seven classified groups cover all 666 startups. Governorate percentages use the currently selected governorate's total as their denominator.
+The seven classified groups contain 644 records. The other 22 remain in the aggregate and appear in the venue UI's `Other` tile: 16 blank labels, one `-`, one `Agriculture`, one `Agritech`, two `Electricity, gas, steam and air conditioning supply`, and one `Public administration and defense; compulsory social security`. These values need source correction or an owner-approved sector mapping before they can be reassigned. Do not claim the seven classified groups cover all 666 startups. Governorate percentages use the currently selected governorate's total as their denominator; nationally, `Other` is 22 of 666 and displays 3% after whole-percentage rounding.
 
 ## Reconciliation and quality limits
 
