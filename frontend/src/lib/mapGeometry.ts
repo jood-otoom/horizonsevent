@@ -22,6 +22,7 @@ export interface MapRegion {
 const ID_BY_ISO: Record<string, MapGovernorateId> = {
   "JO-AQ": "aqaba", "JO-KA": "karak", "JO-MA": "mafraq", "JO-JA": "jarash",
   "JO-AM": "amman", "JO-AJ": "ajlun", "JO-IR": "irbid", "JO-MN": "maan",
+  "JO-BA": "balqa", "JO-MD": "madaba", "JO-AT": "tafilah", "JO-AZ": "zarqa",
 };
 
 const geojson = JSON.parse(geometryText) as {
@@ -146,7 +147,7 @@ export const mapRegions: readonly MapRegion[] = geojson.features.map(feature => 
   };
 });
 
-if (mapRegions.length !== 12 || mapRegions.filter(region => region.selectable).length !== 8 ||
+if (mapRegions.length !== 12 || mapRegions.filter(region => region.selectable).length !== 12 ||
   mapRegions.some(region => !region.polygons.some(polygon => pointInPolygon(region.point, polygon)))) {
   throw new Error("Jordan governorate geometry is incomplete.");
 }

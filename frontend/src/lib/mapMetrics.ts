@@ -1,4 +1,4 @@
-import { MAP_GOVERNORATE_IDS, MAP_GOVERNORATE_NAMES, MAP_SECTORS, MAP_STAGES, type MapSnapshot, type MapSummary, type MapSectorId } from "../types/map";
+import { MAP_GOVERNORATE_IDS, MAP_GOVERNORATE_NAMES, MAP_SECTORS, type MapGovernorateId, type MapSnapshot, type MapSummary, type MapSectorId } from "../types/map";
 
 function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0);
@@ -9,13 +9,12 @@ function isCount(value: number): boolean {
 }
 
 function checkSummary(summary: MapSummary, name: string): void {
-  const stageCounts = MAP_STAGES.map(stage => summary.stages[stage]);
   const sectorCounts = MAP_SECTORS.map(sector => summary.sectors[sector.id]);
   const genderCounts = [summary.gender.female, summary.gender.male, summary.gender.unknown];
   const employment = summary.employment;
-  if (![summary.total, ...stageCounts, ...sectorCounts, ...genderCounts,
+  if (![summary.total, ...sectorCounts, ...genderCounts,
     employment.startupsWithEmployees, employment.totalEmployees, employment.unknownCount].every(isCount) ||
-    sum(stageCounts) !== summary.total || sum(sectorCounts) !== summary.total ||
+    sum(sectorCounts) !== summary.total ||
     sum(genderCounts) !== summary.total ||
     employment.startupsWithEmployees + employment.unknownCount > summary.total) {
     throw new Error(`Map data for ${name} does not reconcile.`);
@@ -25,15 +24,19 @@ function checkSummary(summary: MapSummary, name: string): void {
 // The workbook generator is the publication gate; this protects the bundled snapshot
 // from accidental manual edits that would make different cards disagree.
 export function validateMapSnapshot(snapshot: MapSnapshot): MapSnapshot {
-  if (snapshot.schemaVersion !== 2 || snapshot.source.includedCount !== snapshot.nationwide.total ||
-    snapshot.nationwide.representedGovernorates !== MAP_GOVERNORATE_IDS.length ||
-    Object.keys(snapshot.governorates).sort().join("|") !== [...MAP_GOVERNORATE_IDS].sort().join("|") ||
-    snapshot.source.sourceRecordCount !== snapshot.source.includedCount + snapshot.source.excludedNAStageCount +
-      snapshot.source.excludedMissingStageCount + snapshot.source.deduplicatedRowCount) {
+  const regionIds = Object.keys(snapshot.governorates) as MapGovernorateId[];
+  if (snapshot.schemaVersion !== 3 || snapshot.source.includedCount !== snapshot.nationwide.total ||
+    snapshot.nationwide.representedGovernorates !== regionIds.length ||
+    regionIds.some(id => !MAP_GOVERNORATE_IDS.includes(id)) ||
+    snapshot.source.sourceRecordCount !== snapshot.source.includedCount ||
+    snapshot.source.uniquenessBasis !== "owner-confirmed-one-row-per-startup" ||
+    snapshot.source.genderField !== "Women-led" || snapshot.source.employmentField !== "Staff Delta" ||
+    snapshot.source.unclassifiedSectorCount !== snapshot.nationwide.sectors.other ||
+    sum(Object.values(snapshot.source.unclassifiedSectorLabels)) !== snapshot.source.unclassifiedSectorCount) {
     throw new Error("Map source version or count is invalid.");
   }
   checkSummary(snapshot.nationwide, "nationwide");
-  for (const id of MAP_GOVERNORATE_IDS) {
+  for (const id of regionIds) {
     const region = snapshot.governorates[id];
     if (!region || region.total === 0 || region.name !== MAP_GOVERNORATE_NAMES[id]) {
       throw new Error(`Map governorate ${id} is missing or mislabeled.`);
@@ -42,13 +45,12 @@ export function validateMapSnapshot(snapshot: MapSnapshot): MapSnapshot {
   }
   const fields = ["total", "gender.female", "gender.male", "gender.unknown",
     "employment.startupsWithEmployees", "employment.totalEmployees", "employment.unknownCount",
-    ...MAP_STAGES.map(stage => `stages.${stage}`),
     ...MAP_SECTORS.map(sector => `sectors.${sector.id}`)];
   for (const field of fields) {
     const parts = field.split(".");
     const value = (summary: MapSummary): number => parts.reduce<unknown>((item, part) =>
       (item as Record<string, unknown>)[part], summary) as number;
-    if (sum(MAP_GOVERNORATE_IDS.map(id => value(snapshot.governorates[id]))) !== value(snapshot.nationwide)) {
+    if (sum(regionIds.map(id => value(snapshot.governorates[id]!))) !== value(snapshot.nationwide)) {
       throw new Error(`Map governorates do not reconcile for ${field}.`);
     }
   }

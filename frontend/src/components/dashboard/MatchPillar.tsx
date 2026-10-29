@@ -18,7 +18,7 @@ export default function MatchPillar({ metrics }: MatchPillarProps) {
     <PillarCard
       title="MATCH"
       subtitle="Find your perfect business partner"
-      icon="bubbles"
+      icon="match"
       gauge={(
         <SemiCircularGauge
           value={completed ?? 0}

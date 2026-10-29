@@ -1,7 +1,8 @@
-// The map-only event palette moves from luminous pink to saturated burgundy.
+// Heat shades use the shared map CSS tokens so regions and cards follow one palette.
 const HEATMAP_COLORS = [
-  "#FFF0F3", "#FFD6DF", "#FFB4C5", "#FF9CB2", "#FF8098",
-  "#FF5A78", "#E91E49", "#C40032", "#9F0028",
+  "var(--map-heat-1)", "var(--map-heat-2)", "var(--map-heat-3)",
+  "var(--map-heat-4)", "var(--map-heat-5)", "var(--map-heat-6)",
+  "var(--map-heat-7)", "var(--map-heat-8)", "var(--map-heat-9)",
 ] as const;
 
 export interface HeatmapScale {

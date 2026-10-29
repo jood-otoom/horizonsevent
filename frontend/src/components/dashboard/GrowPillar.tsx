@@ -22,7 +22,7 @@ export default function GrowPillar({ metrics }: GrowPillarProps) {
     <PillarCard
       title="GROW"
       subtitle="Scale with the right support"
-      icon="growth"
+      icon="grow"
       gauge={(
         <SemiCircularGauge
           value={average ?? 0}
